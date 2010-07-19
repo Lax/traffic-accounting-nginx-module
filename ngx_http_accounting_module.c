@@ -8,10 +8,11 @@
 #define _DEFAULT_UNIT_NUM_ 0
 
 typedef struct {
-	ngx_int_t accounting_unit;
+	ngx_int_t accounting_id;
 } ngx_http_accounting_conf_t;
 
-static ngx_pool_t	*ngx_http_accounting_unit_id_pool;
+static ngx_pool_t	*ngx_http_accounting_id_pool;
+static ngx_time_t	*tp;
 
 static u_char *ngx_http_accounting_title = (u_char *)"NgxAccounting";
 
@@ -20,11 +21,9 @@ ngx_int_t accounting_requests[_MAX_UNIT_NUM_];
 
 ngx_int_t ngx_http_accounting_timer_old = 0;
 ngx_int_t ngx_http_accounting_timer_new = 0;
-ngx_uint_t ngx_http_accounting_requests = 0;
-ngx_uint_t ngx_http_accounting_bytes_sent = 0;
 
-static ngx_int_t ngx_http_accounting_unit_filter_init (ngx_conf_t*);
-static ngx_int_t ngx_http_accounting_unit_header_filter(ngx_http_request_t*);
+static ngx_int_t ngx_http_accounting_filter_init (ngx_conf_t*);
+static ngx_int_t ngx_http_accounting_header_filter(ngx_http_request_t*);
 
 static ngx_int_t ngx_http_accounting_add_variables(ngx_conf_t *cf);
 static ngx_int_t ngx_http_accounting_requests_variable(ngx_http_request_t *r,    ngx_http_variable_value_t *v, uintptr_t data);
@@ -36,44 +35,44 @@ static char * ngx_http_accounting_merge_loc_conf(ngx_conf_t *cf, void*, void*);
 static ngx_int_t ngx_http_accounting_process_init(ngx_cycle_t *cycle);
 static void ngx_http_accounting_process_exit(ngx_cycle_t *cycle);
 
-static ngx_int_t ngx_http_accounting_conditional_log();
+static ngx_int_t ngx_http_accounting_log_write_out();
 static ngx_int_t ngx_http_accounting_record_syslog(const char *fmt, ...);
 
 static ngx_command_t  ngx_http_accounting_commands[] = {
 
-	{ ngx_string("accounting_unit"),                   /* name */
+	{ ngx_string("accounting_id"),				/* name */
 		NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,                     /* type */
 		ngx_conf_set_num_slot,				/* set~~~ */
 		NGX_HTTP_LOC_CONF_OFFSET,			/* conf */
-		offsetof(ngx_http_accounting_conf_t, accounting_unit),	/* offset */
-		NULL                        /* post */ },
+		offsetof(ngx_http_accounting_conf_t, accounting_id),	/* offset */
+		NULL						/* post */ },
 
 	ngx_null_command
 };
 
 static ngx_http_module_t  ngx_http_accounting_ctx = {
-	ngx_http_accounting_add_variables,          /* preconfiguration */
-	ngx_http_accounting_unit_filter_init,                   /* postconfiguration */
-	NULL,                 /* create main configuration */
-	NULL,                 /* init main configuration */
-	NULL,                 /* create server configuration */
-	NULL,                 /* merge server configuration */
-	ngx_http_accounting_create_loc_conf,			/* create location configuration */
-	ngx_http_accounting_merge_loc_conf			/* merge location configuration */
+	ngx_http_accounting_add_variables,		/* preconfiguration */
+	ngx_http_accounting_filter_init,		/* postconfiguration */
+	NULL,						/* create main configuration */
+	NULL,						/* init main configuration */
+	NULL,						/* create server configuration */
+	NULL,						/* merge server configuration */
+	ngx_http_accounting_create_loc_conf,		/* create location configuration */
+	ngx_http_accounting_merge_loc_conf		/* merge location configuration */
 };
 
 ngx_module_t ngx_http_accounting_module = {
 	NGX_MODULE_V1,
-	&ngx_http_accounting_ctx,				/* module context */
+	&ngx_http_accounting_ctx,			/* module context */
 	ngx_http_accounting_commands,			/* module directives */
-	NGX_HTTP_MODULE,						/* module type */
-	NULL,									/* init master */
-	NULL,									/* init module */
+	NGX_HTTP_MODULE,				/* module type */
+	NULL,						/* init master */
+	NULL,						/* init module */
 	ngx_http_accounting_process_init,		/* init process */
-	NULL,									/* init thread */
-	NULL,									/* exit thread */
+	NULL,						/* init thread */
+	NULL,						/* exit thread */
 	ngx_http_accounting_process_exit,		/* exit process */
-	NULL,									/* exit master */
+	NULL,						/* exit master */
 	NGX_MODULE_V1_PADDING
 };
 
@@ -105,32 +104,30 @@ ngx_http_accounting_add_variables(ngx_conf_t *cf)
 	var->data = v->data;
 	}
 
-	ngx_http_accounting_conditional_log();
-
 	return NGX_OK;
 }
 
 static ngx_int_t
-ngx_http_accounting_get_unit_id(ngx_http_request_t *r)
+ngx_http_accounting_get_accounting_id(ngx_http_request_t *r)
 {
 
-	static ngx_str_t *unit_id_str = NULL;
+	static ngx_str_t *accounting_id_str = NULL;
 	static ngx_uint_t key = 0;
 
 	ngx_http_variable_value_t *vv;
-	if (unit_id_str==NULL) {
-		if((unit_id_str = ngx_palloc(ngx_http_accounting_unit_id_pool, sizeof(*unit_id_str) + sizeof("unit_id")))!=NULL) {;
-			unit_id_str->len = sizeof("unit_id") -1;
-			unit_id_str->data = (u_char *)(unit_id_str + 1);
-			ngx_memcpy(unit_id_str->data, (u_char *)"unit_id", unit_id_str->len);
-			key = ngx_hash_strlow(unit_id_str->data, unit_id_str->data, unit_id_str->len);
+	if (accounting_id_str==NULL) {
+		if((accounting_id_str = ngx_palloc(ngx_http_accounting_id_pool, sizeof(*accounting_id_str) + sizeof("accounting_id")))!=NULL) {;
+			accounting_id_str->len = sizeof("accounting_id") -1;
+			accounting_id_str->data = (u_char *)(accounting_id_str + 1);
+			ngx_memcpy(accounting_id_str->data, (u_char *)"accounting_id", accounting_id_str->len);
+			key = ngx_hash_strlow(accounting_id_str->data, accounting_id_str->data, accounting_id_str->len);
 		}
 		else {
-			ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "unable to allocate memory for $unit_id variable name.");
+			ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "unable to allocate memory for $accounting_id variable name.");
 		}
 	}
 	
-	vv = ngx_http_get_variable(r, unit_id_str, key);
+	vv = ngx_http_get_variable(r, accounting_id_str, key, 0);
 	if(vv!=NULL && !vv->not_found && vv->len!=0) {
 		if(ngx_atoi(vv->data, vv->len) > 0 && ngx_atoi(vv->data, vv->len) < _MAX_UNIT_NUM_) {
 			return ngx_atoi(vv->data, vv->len);
@@ -138,7 +135,7 @@ ngx_http_accounting_get_unit_id(ngx_http_request_t *r)
 			return _DEFAULT_UNIT_NUM_;
 		}
 	}
-	
+
 	return _DEFAULT_UNIT_NUM_;
 }
 
@@ -148,8 +145,8 @@ ngx_http_accounting_bytes_sent_variable(ngx_http_request_t *r, ngx_http_variable
 	off_t			sent;
 	u_char			*p;
 
-	ngx_int_t		accounting_unit = ngx_http_accounting_get_unit_id(r);
-	accounting_bytes_out[accounting_unit] += r->connection->sent; // we get zero here.
+	ngx_int_t		accounting_id = ngx_http_accounting_get_accounting_id(r);
+	accounting_bytes_out[accounting_id] += r->connection->sent; // we get zero here.
 
 	sent = r->connection->sent;
 		
@@ -174,19 +171,19 @@ ngx_http_accounting_requests_variable(ngx_http_request_t *r, ngx_http_variable_v
 	u_char			*p;
 	size_t			len;
 
-	ngx_int_t		accounting_unit = ngx_http_accounting_get_unit_id(r);
-	accounting_requests[accounting_unit] ++;
+	ngx_int_t		accounting_id = ngx_http_accounting_get_accounting_id(r);
+	accounting_requests[accounting_id] ++;
 
 	v->valid = 1;
 	v->no_cacheable = 0;
 	v->not_found = 0;
 
-	len = sizeof(accounting_requests[accounting_unit]);
+	len = sizeof(accounting_requests[accounting_id]);
 	p = ngx_pnalloc(r->pool, len);
 
 	v->data = p;
 
-	p = ngx_sprintf(p, "%d", accounting_requests[accounting_unit]);
+	p = ngx_sprintf(p, "%d", accounting_requests[accounting_id]);
 
 	v->len = p - v->data;
 
@@ -194,13 +191,40 @@ ngx_http_accounting_requests_variable(ngx_http_request_t *r, ngx_http_variable_v
 }
 // VARS end
 
+void ngx_http_accounting_alarm_handler(int sig) {
+	ngx_http_accounting_log_write_out();
+}
+
 // process init
 static ngx_int_t
 ngx_http_accounting_process_init(ngx_cycle_t *cycle)
 {
-	ngx_http_accounting_unit_id_pool = ngx_create_pool(1024, 0);
+	struct sigaction  sa;
+	struct itimerval  itv;
 
-	openlog((char *)ngx_http_accounting_title, LOG_ODELAY, LOG_SYSLOG);
+	openlog((char *)ngx_http_accounting_title, LOG_NDELAY, LOG_SYSLOG);
+
+	ngx_memzero(&sa, sizeof(struct sigaction));
+	sa.sa_handler = ngx_http_accounting_alarm_handler;
+	sigemptyset(&sa.sa_mask);
+
+	if (sigaction(SIGALRM, &sa, NULL) == -1) {
+	ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_errno,
+		"sigaction(SIGALRM) failed");
+	return NGX_ERROR;
+	}
+
+	itv.it_interval.tv_sec = 60;
+	itv.it_interval.tv_usec = 0;
+	itv.it_value.tv_sec = 60;
+	itv.it_value.tv_usec = 0;
+
+	if (setitimer(ITIMER_REAL, &itv, NULL) == -1) {
+		ngx_log_error(NGX_LOG_ALERT, cycle->log, ngx_errno,
+			"setitimer() failed");
+	}
+
+	ngx_http_accounting_id_pool = ngx_create_pool(1024, 0);
 
 	int i;
 	for (i = 0; i < _MAX_UNIT_NUM_; i++) {
@@ -208,7 +232,7 @@ ngx_http_accounting_process_init(ngx_cycle_t *cycle)
 		accounting_requests[i] = 0;
 	}
 
-	ngx_http_accounting_record_syslog("pid:%i|Process init", ngx_getpid());
+	ngx_http_accounting_record_syslog("pid:%i|Process:init", ngx_getpid());
 
 	return NGX_OK;
 }
@@ -216,9 +240,9 @@ ngx_http_accounting_process_init(ngx_cycle_t *cycle)
 static void
 ngx_http_accounting_process_exit(ngx_cycle_t *cycle)
 {
-	ngx_http_accounting_record_syslog("pid:%i|Process exit", ngx_getpid());
-
-	closelog();
+	ngx_http_accounting_log_write_out();
+	ngx_http_accounting_record_syslog("pid:%i|Process:exit", ngx_getpid());
+	//closelog();
 
 	return;
 }
@@ -234,7 +258,7 @@ ngx_http_accounting_create_loc_conf(ngx_conf_t *cf)
 		return NGX_CONF_ERROR;
 	}
 
-	conf->accounting_unit = NGX_CONF_UNSET;
+	conf->accounting_id = NGX_CONF_UNSET;
 
 	return conf;
 };
@@ -245,7 +269,7 @@ ngx_http_accounting_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 	ngx_http_accounting_conf_t *prev = parent;
 	ngx_http_accounting_conf_t *conf = child;
 
-	ngx_conf_merge_value(conf->accounting_unit, prev->accounting_unit, 0);
+	ngx_conf_merge_value(conf->accounting_id, prev->accounting_id, 0);
 
 	return NGX_CONF_OK;
 };
@@ -253,34 +277,29 @@ ngx_http_accounting_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 static ngx_int_t
 ngx_http_accounting_record_syslog(const char *fmt, ...)
 {
-  va_list args;
+	va_list args;
 
-  va_start(args, fmt);
-  vsyslog(LOG_INFO, fmt, args);
-  va_end(args);
+	va_start(args, fmt);
+	vsyslog(LOG_INFO, fmt, args);
+	va_end(args);
 
-  return NGX_OK;
+	return NGX_OK;
 };
 
 static ngx_int_t
-ngx_http_accounting_conditional_log()
+ngx_http_accounting_log_write_out()
 {
-	ngx_time_t      *tp;
 	tp = ngx_timeofday();
-	
-	if(tp->sec >= ngx_http_accounting_timer_new)
-	{
-		int i = 0;
-		for (i = 0; i < _MAX_UNIT_NUM_; i++) {
-			if(accounting_requests[i] > 0) {
-				ngx_http_accounting_record_syslog("pid:%i|from:%i|to:%i|accounting_unit_id:%d|requests:%d|bytes_out:%d", ngx_getpid(), ngx_http_accounting_timer_old, ngx_http_accounting_timer_new, i, accounting_requests[i], accounting_bytes_out[i]);
-				accounting_requests[i] = 0;
-				accounting_bytes_out[i] = 0;
-			}
-		}
+	ngx_http_accounting_timer_old = ngx_http_accounting_timer_new; // - _INTERVAL_;
+	ngx_http_accounting_timer_new = tp->sec;
 
-		ngx_http_accounting_timer_old = tp->sec;
-		ngx_http_accounting_timer_new = tp->sec / _INTERVAL_ * _INTERVAL_ + _INTERVAL_;
+	int i;
+	for (i = 0; i < _MAX_UNIT_NUM_; i++) {
+		if(accounting_requests[i] > 0) {
+			ngx_http_accounting_record_syslog("pid:%i|from:%i|to:%i|accounting_id:%d|requests:%d|bytes_out:%d", ngx_getpid(), ngx_http_accounting_timer_old, ngx_http_accounting_timer_new, i, accounting_requests[i], accounting_bytes_out[i]);
+			accounting_requests[i] = 0;
+			accounting_bytes_out[i] = 0;
+		}
 	}
 
 	return NGX_OK;
@@ -289,18 +308,16 @@ ngx_http_accounting_conditional_log()
 static ngx_http_output_header_filter_pt ngx_http_next_header_filter;
 
 static ngx_int_t
-ngx_http_accounting_unit_header_filter(ngx_http_request_t *r)
+ngx_http_accounting_header_filter(ngx_http_request_t *r)
 {
-	ngx_http_accounting_conditional_log();
-
 	return ngx_http_next_header_filter(r);
 }
 
 static ngx_int_t
-ngx_http_accounting_unit_filter_init (ngx_conf_t *cf)
+ngx_http_accounting_filter_init (ngx_conf_t *cf)
 {
     ngx_http_next_header_filter = ngx_http_top_header_filter;
-    ngx_http_top_header_filter = ngx_http_accounting_unit_header_filter;
+    ngx_http_top_header_filter = ngx_http_accounting_header_filter;
 
     return NGX_OK;
 }
