@@ -1,0 +1,25 @@
+INSTALLATION of module
+======================
+
+ $> ./configure --add-module=/path/to/ngx_http_accounting_module
+ $> make
+ #> make install
+
+
+CONFIGURATION in nginx
+======================
+ http{
+  http_accounting  on;
+  ...
+  
+  server {
+    http_accounting_id  accounting_id_str; 
+    ...
+
+    location / {
+      http_accounting_id  accounting_id_str; 
+      ...
+    
+    }
+  }
+ }
