@@ -9,15 +9,15 @@ INSTALLATION of module
 CONFIGURATION in nginx
 ======================
  http{
-  http_accounting  on;
+  http_accounting  on;   # open accounting function
   ...
   
   server {
-    http_accounting_id  accounting_id_str; 
+    http_accounting_id  accounting_id_str;   # set accounting_id
     ...
 
     location / {
-      http_accounting_id  accounting_id_str; 
+      http_accounting_id  accounting_id_str;    # set accounting_id
       ...
     
     }

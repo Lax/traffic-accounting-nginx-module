@@ -66,7 +66,7 @@ void *
 ngx_http_accounting_hash_find(ngx_http_accounting_hash_t *hash,
         ngx_uint_t key, u_char *name, size_t len)
 {
-    ngx_uint_t       i;
+    ngx_uint_t       i, j;
     ngx_array_t     *bucket;
     ngx_http_accounting_hash_elt_t *elt;
     ngx_http_accounting_hash_elt_t *elts;
@@ -85,13 +85,15 @@ ngx_http_accounting_hash_find(ngx_http_accounting_hash_t *hash,
             continue;
         }
 
-        for (i = 0; i<len; i++) {
-            if (name[i] != elt->name[i]) {
-                continue;
+        for (j = 0; j<len; j++) {
+            if (name[j] != elt->name[j]) {
+                break;
             }
         }
 
-        return elt->value;
+        if (j == len) {
+            return elt->value;
+        }
     }
 
     return NULL;

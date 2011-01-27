@@ -2,11 +2,7 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-#include <signal.h>
 #include <syslog.h>
-#include <unistd.h>
-#include <sys/msg.h>
-#include <sys/types.h>
 
 #include "ngx_http_accounting_hash.h"
 #include "ngx_http_accounting_module.h"
@@ -15,7 +11,7 @@
 #include "ngx_http_accounting_worker_process.h"
 
 
-#define WORKER_PROCESS_TIMER_INTERVAL   60       /* In seconds */
+#define WORKER_PROCESS_TIMER_INTERVAL   30       /* In seconds */
 
 static ngx_event_t  write_out_ev;
 static ngx_http_accounting_hash_t  stats_hash;
@@ -119,7 +115,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
     } else if (r->headers_out.status) {
         status = r->headers_out.status;
     } else {
-        status = NGX_HTTP_ACCT_UNKNOWN;
+        status = NGX_HTTP_DEFAULT;
     }
 
     stats->nr_requests += 1;
@@ -145,13 +141,13 @@ worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1,
         return NGX_OK;
     }
 
-    sprintf(output_buffer, "pid:%i|from:%i|to:%i|accounting_id:%s|requests:%d|bytes_out:%d",
+    sprintf(output_buffer, "pid:%i|from:%ld|to:%ld|accounting_id:%s|requests:%ld|bytes_out:%ld",
                 ngx_getpid(),
-                (int)ngx_http_accounting_old_time,
-                (int)ngx_http_accounting_new_time,
+                ngx_http_accounting_old_time,
+                ngx_http_accounting_new_time,
                 name,
-                (int)stats->nr_requests,
-                (int)stats->bytes_out
+                stats->nr_requests,
+                stats->bytes_out
             );
 
     stats->nr_requests = 0;
@@ -159,9 +155,9 @@ worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1,
 
     for (i = 0; i < http_status_code_count; i++) {
         if(stats->http_status_code[i] > 0) {
-            sprintf(temp_buffer, "|%d:%d",
-            		(int)index_to_http_status_code_map[i],
-            		(int)stats->http_status_code[i]);
+            sprintf(temp_buffer, "|%ld:%ld",
+                        index_to_http_status_code_map[i],
+                        stats->http_status_code[i]);
 
             strcat(output_buffer, temp_buffer);
 
@@ -178,7 +174,6 @@ worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1,
 static void
 worker_process_alarm_handler(ngx_event_t *ev)
 {
-    double jitter;
     ngx_time_t  *time;
     ngx_msec_t   next;
 
@@ -189,14 +184,10 @@ worker_process_alarm_handler(ngx_event_t *ev)
 
     ngx_http_accounting_hash_iterate(&stats_hash, worker_process_write_out_stats, NULL, NULL);
 
-    ngx_time_update();
-
     if (ngx_exiting || ev == NULL)
         return;
 
-    jitter = random() * 0.2 / RAND_MAX - 0.1;    /*  -0.1 < jitter < 0.1  */
-
-    next = (ngx_msec_t)WORKER_PROCESS_TIMER_INTERVAL * 1000 * (1.0 + jitter);
+    next = (ngx_msec_t)WORKER_PROCESS_TIMER_INTERVAL * 1000;
 
     ngx_add_timer(ev, next);
 }
