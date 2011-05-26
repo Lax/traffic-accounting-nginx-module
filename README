@@ -23,3 +23,10 @@ CONFIGURATION in nginx
     }
   }
  }
+
+
+BRANCHES
+======================
+master : new feathers
+v2-freeze-20110526 : works with nginx version(0.7.xx, 0.8.xx), nginx 0.9 is not tested. didn't work with nginx above 1.0.x.
+

@@ -96,8 +96,11 @@ init_http_status_code_map()
     index_to_http_status_code_map[i] = NGX_HTTP_CLOSE;
     http_status_code_to_index_map[NGX_HTTP_CLOSE] = i++;
 
-    index_to_http_status_code_map[i] = NGX_HTTP_OWN_CODES;
-    http_status_code_to_index_map[NGX_HTTP_OWN_CODES] = i++;
+    index_to_http_status_code_map[i] = NGX_HTTP_NGINX_CODES;
+    http_status_code_to_index_map[NGX_HTTP_NGINX_CODES] = i++;
+
+    index_to_http_status_code_map[i] = NGX_HTTP_REQUEST_HEADER_TOO_LARGE;
+    http_status_code_to_index_map[NGX_HTTP_REQUEST_HEADER_TOO_LARGE] = i++;
 
     index_to_http_status_code_map[i] = NGX_HTTPS_CERT_ERROR;
     http_status_code_to_index_map[NGX_HTTPS_CERT_ERROR] = i++;
