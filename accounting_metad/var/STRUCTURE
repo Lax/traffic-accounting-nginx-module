@@ -1,0 +1,12 @@
+rrds/
+|-- :groupname
+|   |-- :ip
+|   |   |-- :id/:target.rrd
+|   |   `-- SUMMARY/:target.rrd
+|   `-- SUMMARY
+|       |-- :id/:target.rrd
+|       `-- SUMMARY/:target.rrd
+`-- SUMMARY
+    `-- SUMMARY
+        |-- :id/:target.rrd
+        `-- SUMMARY/:target.rrd

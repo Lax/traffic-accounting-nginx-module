@@ -1,15 +1,18 @@
 = Installation
 
- $> cd /path/to/nginx-src/
- $> ./configure --add-module=/path/to/ngx_http_accounting_module
- $> make
- #> make install
+Configure ngx_http_accounting_module as nginx module when build nginx.
+
+ cd /path/to/nginx-src/
+ ./configure --add-module=/path/to/ngx_http_accounting_module
+ make -j2
+ make install
 
 = Configuration
 
-Edit your nginx.conf.
+Just need to edit your nginx.conf.
 
 Example:
+
  http{
   http_accounting  on;   # turn on accounting function
   ...
@@ -27,6 +30,8 @@ Example:
  }
 
 = Branches
+
 * master : new feathers
+
 * v2-freeze-20110526 : works with nginx version(0.7.xx, 0.8.xx), nginx 0.9 is not tested. didn't work with nginx above 1.0.x.
 

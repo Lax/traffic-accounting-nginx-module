@@ -1,0 +1,16 @@
+= Accounting META Daemon
+Traffic accounting meta server.
+
+by Lantao Liu <liulantao at gmail.com>
+
+for more information, please visit https://github.com/Lax/ngx_http_accounting_module
+
+= Usage
+To run accounting_metad, just type following command:
+ ruby accounting_metad.rb
+
+= Data Format
+
+By default, traffic accounting data is stored in ./var/rrds/.
+
+You can specify other dir in ./includes/settings.yml.
