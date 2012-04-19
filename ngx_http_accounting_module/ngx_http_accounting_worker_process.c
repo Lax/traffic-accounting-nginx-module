@@ -59,7 +59,8 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
     write_out_ev.log = cycle->log;
     write_out_ev.handler = worker_process_alarm_handler;
 
-    ngx_add_timer(&write_out_ev, WORKER_PROCESS_TIMER_INTERVAL*1000);
+    srand(ngx_getpid());
+    ngx_add_timer(&write_out_ev, WORKER_PROCESS_TIMER_INTERVAL*(1000-rand()%200));
 
     return NGX_OK;
 }
