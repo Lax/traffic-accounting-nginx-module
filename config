@@ -1,0 +1,17 @@
+ngx_addon_name=ngx_http_accounting_module
+
+HTTP_MODULES="$HTTP_MODULES ngx_http_accounting_module"
+
+NGX_ADDON_SRCS="$NGX_ADDON_SRCS  \
+    $ngx_addon_dir/src/ngx_http_accounting_hash.c  \
+    $ngx_addon_dir/src/ngx_http_accounting_common.c  \
+    $ngx_addon_dir/src/ngx_http_accounting_module.c  \
+    $ngx_addon_dir/src/ngx_http_accounting_status_code.c  \
+    $ngx_addon_dir/src/ngx_http_accounting_worker_process.c"
+
+NGX_ADDON_DEPS="$NGX_ADDON_DEPS  \
+    $ngx_addon_dir/src/ngx_http_accounting_hash.h  \
+    $ngx_addon_dir/src/ngx_http_accounting_common.h  \
+    $ngx_addon_dir/src/ngx_http_accounting_module.h  \
+    $ngx_addon_dir/src/ngx_http_accounting_status_code.h  \
+    $ngx_addon_dir/src/ngx_http_accounting_worker_process.h"

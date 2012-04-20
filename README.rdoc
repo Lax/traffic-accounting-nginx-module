@@ -4,8 +4,7 @@ Configure ngx_http_accounting_module as nginx module when build nginx.
 
  cd /path/to/nginx-src/
  ./configure --add-module=/path/to/ngx_http_accounting_module
- make -j2
- make install
+ make && make install
 
 = Configuration
 
@@ -28,6 +27,10 @@ Example:
     }
   }
  }
+
+= Usage
+
+For sample utils, see here: http://github.com/Lax/ngx_http_accounting_module-utils/
 
 = Branches
 
