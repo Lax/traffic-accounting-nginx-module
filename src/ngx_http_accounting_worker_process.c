@@ -120,6 +120,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
     }
 
     stats->nr_requests += 1;
+    stats->bytes_in += r->request_length;
     stats->bytes_out += r->connection->sent;
     stats->http_status_code[http_status_code_to_index_map[status]] += 1;
 
@@ -142,12 +143,13 @@ worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1,
         return NGX_OK;
     }
 
-    sprintf(output_buffer, "pid:%i|from:%ld|to:%ld|accounting_id:%s|requests:%ld|bytes_out:%ld",
+    sprintf(output_buffer, "pid:%i|from:%ld|to:%ld|accounting_id:%s|requests:%ld|bytes_in:%ld|bytes_out:%ld",
                 ngx_getpid(),
                 ngx_http_accounting_old_time,
                 ngx_http_accounting_new_time,
                 name,
                 stats->nr_requests,
+                stats->bytes_in,
                 stats->bytes_out
             );
 
