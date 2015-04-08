@@ -42,15 +42,17 @@ For sample configuration / utils, see: [Lax/ngx_http_accounting_module-utils](ht
 
 The output contains a list of k/v for the accounting metrics, in the sequence of:
 
-* `pid`:           pid of nginx worker process
-* `from`/`to`:     metric was collected between these timestamps
-* `accounting_id`: identify for the accounting unit, you name it with `http_accounting_id` directive
-* `requests`:      count of total requests processed
-* `bytes_in`:      total bytes receiverd by the server
-* `bytes_out`:     total bytes send out by the server
-* `latency_ms`:    average `$request_time`
-* `upstream_latency_ms`:  average `$upstream_response_time`
-* `200`/`302`/`400`/`404`/`500`/...:  count of requests which response is with http code `200`/`302`/`400`/`404`/`500`, etc
+|  key             |  meaning |
+|------------------|----------|
+| `pid`           | pid of nginx worker process |
+| `from` / `to`   | metric was collected between these timestamps |
+| `accounting_id` | identify for the accounting unit, you name it with `http_accounting_id` directive |
+| `requests`      | count of total requests processed |
+| `bytes_in`      | total bytes receiverd by the server |
+| `bytes_out`     | total bytes send out by the server |
+| `latency_ms`    | average `$request_time`, in `millisecond` |
+| `upstream_latency_ms`  | average `$upstream_response_time`, in `millisecond` |
+| `200` / `302` / `400` / `404` / `500` ... | count of requests which response is with http code `200`/`302`/`400`/`404`/`500`, etc |
 
 # Branches
 
