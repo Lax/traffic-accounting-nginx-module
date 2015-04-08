@@ -4,7 +4,7 @@ Configure ngx_http_accounting_module as nginx module with ```--add-module``` whe
 
     cd /path/to/nginx-src/
 
-    git clone https://github.com/Lax/ngx_http_accounting_module.git -b v0.2
+    git clone https://github.com/Lax/ngx_http_accounting_module.git -b v0.3
 
     ./configure --add-module=ngx_http_accounting_module
 
