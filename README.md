@@ -6,7 +6,7 @@ Configure ngx_http_accounting_module as nginx module with ```--add-module``` whe
 
     git clone https://github.com/Lax/ngx_http_accounting_module.git -b v0.2
 
-    ./configure --add-module=/path/to/ngx_http_accounting_module
+    ./configure --add-module=ngx_http_accounting_module
 
     make && make install
 
@@ -35,6 +35,22 @@ Example:
 This module write statistics to syslog. You should edit your syslog configuration.
 
 For sample configuration / utils, see: [Lax/ngx_http_accounting_module-utils](http://github.com/Lax/ngx_http_accounting_module-utils)
+
+## Sample syslog output
+
+    Apr  8 11:19:46 localhost NgxAccounting: pid:8555|from:1428463159|to:1428463186|accounting_id:default|requests:10|bytes_in:1400|bytes_out:223062|latency_ms:1873|upstream_latency_ms:1873|200:9|302:1
+
+The output contains a list of k/v for the accounting metrics, in the sequence of:
+
+* `pid`:           pid of nginx worker process
+* `from`/`to`:     metric was collected between these timestamps
+* `accounting_id`: identify for the accounting unit, you name it with `http_accounting_id` directive
+* `requests`:      count of total requests processed
+* `bytes_in`:      total bytes receiverd by the server
+* `bytes_out`:     total bytes send out by the server
+* `latency_ms`:    average `$request_time`
+* `upstream_latency_ms`:  average `$upstream_response_time`
+* `200`/`302`/`400`/`404`/`500`/...:  count of requests which response is with http code `200`/`302`/`400`/`404`/`500`, etc
 
 # Branches
 
