@@ -13,7 +13,7 @@ typedef struct {
     ngx_uint_t       bytes_in;
     ngx_uint_t       bytes_out;
     ngx_uint_t       total_latency_ms;
-    ngx_uint_t       upstream_total_latency_ms;
+    ngx_uint_t       total_upstream_latency_ms;
     ngx_uint_t      *http_status_code;
 } ngx_http_accounting_stats_t;
 

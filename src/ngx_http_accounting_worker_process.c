@@ -139,7 +139,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
     stats->bytes_in += r->request_length;
     stats->bytes_out += r->connection->sent;
     stats->total_latency_ms += req_latency_ms;
-    stats->upstream_total_latency_ms += upstream_req_latency_ms;
+    stats->total_upstream_latency_ms += upstream_req_latency_ms;
     stats->http_status_code[http_status_code_to_index_map[status]] += 1;
 
     return NGX_OK;
@@ -169,15 +169,15 @@ worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1,
                 stats->nr_requests,
                 stats->bytes_in,
                 stats->bytes_out,
-                stats->total_latency_ms / (stats->nr_requests > 0 ? stats->nr_requests : 1),
-                stats->upstream_total_latency_ms / (stats->nr_requests > 0 ? stats->nr_requests : 1)
+                stats->total_latency_ms,
+                stats->total_upstream_latency_ms
             );
 
     stats->nr_requests = 0;
     stats->bytes_in = 0;
     stats->bytes_out = 0;
     stats->total_latency_ms = 0;
-    stats->upstream_total_latency_ms = 0;
+    stats->total_upstream_latency_ms = 0;
 
     for (i = 0; i < http_status_code_count; i++) {
         if(stats->http_status_code[i] > 0) {
