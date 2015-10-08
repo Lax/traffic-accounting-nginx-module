@@ -20,6 +20,7 @@ static char *ngx_http_accounting_init_main_conf(ngx_conf_t *cf, void *conf);
 static void *ngx_http_accounting_create_loc_conf(ngx_conf_t *cf);
 static char *ngx_http_accounting_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child);
 
+static char *ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 static ngx_command_t  ngx_http_accounting_commands[] = {
     { ngx_string("http_accounting"),
@@ -31,9 +32,9 @@ static ngx_command_t  ngx_http_accounting_commands[] = {
 
     { ngx_string("http_accounting_id"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
+      ngx_http_accounting_set_accounting_id,
       NGX_HTTP_LOC_CONF_OFFSET,
-      offsetof(ngx_http_accounting_loc_conf_t, accounting_id),
+      0,
       NULL},
 
     ngx_null_command
@@ -157,6 +158,31 @@ ngx_http_accounting_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_accounting_loc_conf_t *conf = child;
 
     ngx_conf_merge_str_value(conf->accounting_id, prev->accounting_id, "default");
+    if (conf->index == 0) {
+        conf->index = prev->index;
+    }
+
+    return NGX_CONF_OK;
+}
+
+static char *
+ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_accounting_loc_conf_t *alcf = conf;
+    ngx_str_t                 *value;
+
+    value = cf->args->elts;
+
+    if (value[1].data[0] == '$') {
+        value[1].len--;
+        value[1].data++;
+
+        alcf->index = ngx_http_get_variable_index(cf, &value[1]);
+        if (alcf->index == NGX_ERROR) {
+            return NGX_CONF_ERROR;
+        }
+    }
+    alcf->accounting_id = value[1];
 
     return NGX_CONF_OK;
 }
