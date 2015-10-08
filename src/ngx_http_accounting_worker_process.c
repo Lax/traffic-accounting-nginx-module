@@ -228,8 +228,20 @@ static ngx_str_t *
 get_accounting_id(ngx_http_request_t *r)
 {
     ngx_http_accounting_loc_conf_t  *alcf;
+    ngx_http_variable_value_t       *vv;
+    static ngx_str_t accounting_id;
 
     alcf = ngx_http_get_module_loc_conf(r, ngx_http_accounting_module);
+
+    if (alcf->index) {
+        vv = ngx_http_get_indexed_variable(r, alcf->index);
+
+        if ((vv != NULL) && (!vv->not_found)) {
+            accounting_id.len = vv->len;
+            accounting_id.data = vv->data;
+            return &accounting_id;
+        }
+    }
 
     return &alcf->accounting_id;
 }

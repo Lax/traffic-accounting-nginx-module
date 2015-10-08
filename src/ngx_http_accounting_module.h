@@ -8,6 +8,7 @@
 
 typedef struct {
     ngx_str_t       accounting_id;
+    ngx_int_t       index;
 } ngx_http_accounting_loc_conf_t;
 
 typedef struct {
