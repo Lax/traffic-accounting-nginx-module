@@ -56,7 +56,7 @@ ngx_http_accounting_hash_add(ngx_http_accounting_hash_t *hash,
     if (elt == NULL)
         return NGX_ERROR;
 
-    data = ngx_palloc(hash->pool, len);
+    data = ngx_pcalloc(hash->pool, len+1);
     ngx_memcpy(data, name, len);
     elt->name = data;
     elt->len = len;
