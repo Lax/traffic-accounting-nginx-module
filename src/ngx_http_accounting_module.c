@@ -37,6 +37,13 @@ static ngx_command_t  ngx_http_accounting_commands[] = {
       0,
       NULL},
 
+    { ngx_string("http_accounting_log"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_accounting_main_conf_t, log),
+      NULL},
+
     ngx_null_command
 };
 
