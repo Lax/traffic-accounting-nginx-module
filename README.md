@@ -16,22 +16,25 @@ Edit your nginx.conf.
 
 Example:
 
-    http{
-        http_accounting  on;   # turn on accounting function
+```nginx
+http{
+    # turn on accounting function
+    http_accounting  on;
+    ...
+    server {
+        server_name example.com;
+        
+        # set accounting_id based on server, use variable
+        http_accounting_id  $http_host;
         ...
-        server {
-            server_name example.com;
-            
-            # set accounting_id based on server, use variable
-            http_accounting_id  $http_host;
+        location / {
+            # set accounting_id based on location
+            http_accounting_id  accounting_id_str;
             ...
-            location / {
-                # set accounting_id based on location
-                http_accounting_id  accounting_id_str;
-                ...
-            }
         }
     }
+}
+```
 
 # Directives
 
