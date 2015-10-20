@@ -158,7 +158,7 @@ ngx_http_accounting_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_http_accounting_loc_conf_t *conf = child;
 
     ngx_conf_merge_str_value(conf->accounting_id, prev->accounting_id, "default");
-    if (conf->index == 0) {
+    if (conf->index == 0) { // accounting_id is not set in current location
         conf->index = prev->index;
     }
 
@@ -181,8 +181,12 @@ ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *
         if (alcf->index == NGX_ERROR) {
             return NGX_CONF_ERROR;
         }
+        alcf->accounting_id = value[1];
+        return NGX_CONF_OK;
     }
+
     alcf->accounting_id = value[1];
+    alcf->index = DEFAULT_INDEX;
 
     return NGX_CONF_OK;
 }

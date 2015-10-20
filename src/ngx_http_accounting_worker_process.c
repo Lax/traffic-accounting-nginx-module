@@ -233,7 +233,7 @@ get_accounting_id(ngx_http_request_t *r)
 
     alcf = ngx_http_get_module_loc_conf(r, ngx_http_accounting_module);
 
-    if (alcf->index) {
+    if (alcf->index > 0) {
         vv = ngx_http_get_indexed_variable(r, alcf->index);
 
         if ((vv != NULL) && (!vv->not_found)) {

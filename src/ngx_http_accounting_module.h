@@ -5,6 +5,7 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
+#define DEFAULT_INDEX -128
 
 typedef struct {
     ngx_str_t       accounting_id;
