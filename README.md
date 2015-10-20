@@ -4,7 +4,7 @@ Configure ngx_http_accounting_module as nginx module with ```--add-module``` whe
 
     cd /path/to/nginx-src/
 
-    git clone https://github.com/Lax/ngx_http_accounting_module.git -b v0.5
+    git clone https://github.com/Lax/ngx_http_accounting_module.git -b v1.0
 
     ./configure --add-module=ngx_http_accounting_module
 
@@ -16,19 +16,47 @@ Edit your nginx.conf.
 
 Example:
 
-    http{
-        http_accounting  on;   # turn on accounting function
+```nginx
+http{
+    # turn on accounting function
+    http_accounting  on;
+    ...
+    server {
+        server_name example.com;
+        
+        # set accounting_id based on server, use variable
+        http_accounting_id  $http_host;
         ...
-        server {
-            server_name example.com;
-            http_accounting_id  accounting_id_str;   # set accounting_id based on server
+        location / {
+            # set accounting_id based on location
+            http_accounting_id  accounting_id_str;
             ...
-            location / {
-                http_accounting_id  accounting_id_str;    # set accounting_id based on location
-                ...
-            }
         }
     }
+}
+```
+
+# Directives
+
+http_accounting
+--------------------
+**syntax:** *http_accounting on | off*
+
+**default:** *http_accounting off*
+
+**context:** *http*
+
+http_accounting_id
+--------------------
+**syntax:** *http_accounting_id <accounting_id>*
+
+**default:** *http_accounting_id default*
+
+**content:** *server, location*
+
+Specifies current request belongs to which accounting_id.
+
+This directive was first introduced in the v0.1 release, and can use variable in v1.0 and above.
 
 # Usage
 
