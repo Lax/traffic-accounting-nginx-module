@@ -21,10 +21,13 @@ Example:
         ...
         server {
             server_name example.com;
-            http_accounting_id  $http_host;   # set accounting_id based on server, use variable
+            
+            # set accounting_id based on server, use variable
+            http_accounting_id  $http_host;
             ...
             location / {
-                http_accounting_id  accounting_id_str;    # set accounting_id based on location
+                # set accounting_id based on location
+                http_accounting_id  accounting_id_str;
                 ...
             }
         }
