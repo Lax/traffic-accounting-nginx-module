@@ -23,7 +23,7 @@ http{
     ...
     server {
         server_name example.com;
-        
+
         # set accounting_id based on server, use variable
         http_accounting_id  $http_host;
         ...
@@ -58,9 +58,29 @@ Specifies current request belongs to which accounting_id.
 
 This directive was first introduced in the v0.1 release, and can use variable in v1.0 and above.
 
+http_accounting_interval
+------------------------
+**syntax:** *http_accounting_interval <seconds>*
+
+**default:** *http_accounting_interval 60*
+
+**context:** *http*
+
+Specifies the reporting interval.  Defaults to 60 seconds.
+
+http_accounting_perturb
+------------------------
+**syntax:** *http_accounting_perturb on | off*
+
+**default:** *http_accounting_perturb off*
+
+**context:** *http*
+
+Randomly staggers the reporting interval by 20% from the usual time.
+
 # Usage
 
-This module write statistics to syslog. You should edit your syslog configuration.
+This module writes statistics to syslog. You should edit your syslog configuration.
 
 For sample configuration / utils, see: [Lax/ngx_http_accounting_module-utils](http://github.com/Lax/ngx_http_accounting_module-utils)
 

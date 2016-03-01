@@ -13,8 +13,8 @@
 #include "ngx_http_accounting_status_code.h"
 #include "ngx_http_accounting_worker_process.h"
 
-
-#define WORKER_PROCESS_TIMER_INTERVAL   30       /* In seconds */
+static time_t worker_process_timer_interval;    /* In seconds */
+static ngx_flag_t worker_process_timer_perturb;
 
 static ngx_event_t  write_out_ev;
 static ngx_http_accounting_hash_t  stats_hash;
@@ -50,6 +50,8 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
     ngx_http_accounting_old_time = time->sec;
     ngx_http_accounting_new_time = time->sec;
     ngx_http_accounting_log = amcf->log;
+    worker_process_timer_interval = amcf->interval;
+    worker_process_timer_perturb = amcf->perturb;
 
     openlog((char *)ngx_http_accounting_title, LOG_NDELAY, LOG_SYSLOG);
     syslog(LOG_INFO, "pid:%i|Process:init", ngx_getpid());
@@ -66,7 +68,12 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
     write_out_ev.handler = worker_process_alarm_handler;
 
     srand(ngx_getpid());
-    ngx_add_timer(&write_out_ev, WORKER_PROCESS_TIMER_INTERVAL*(1000-rand()%200));
+    time_t perturb_factor = 1;
+    if (worker_process_timer_perturb) {
+      perturb_factor = (1000-rand()%200);
+    }
+
+    ngx_add_timer(&write_out_ev, worker_process_timer_interval * perturb_factor);
 
     return NGX_OK;
 }
@@ -253,7 +260,7 @@ worker_process_alarm_handler(ngx_event_t *ev)
     if (ngx_exiting || ev == NULL)
         return;
 
-    next = (ngx_msec_t)WORKER_PROCESS_TIMER_INTERVAL * 1000;
+    next = (ngx_msec_t)worker_process_timer_interval * 1000;
 
     ngx_add_timer(ev, next);
 }

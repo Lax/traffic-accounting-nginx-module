@@ -15,6 +15,8 @@ typedef struct {
 typedef struct {
     ngx_flag_t      enable;
     ngx_str_t       log;
+    time_t          interval;
+    ngx_flag_t      perturb;
 } ngx_http_accounting_main_conf_t;
 
 extern ngx_module_t ngx_http_accounting_module;
