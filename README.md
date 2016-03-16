@@ -46,9 +46,17 @@ http_accounting
 
 **context:** *http*
 
+http_accounting_log
+--------------------
+**syntax:** *http_accounting_log \</path/to/log/file>*
+
+**default:** *-*
+
+**context:** *http*
+
 http_accounting_id
 --------------------
-**syntax:** *http_accounting_id <accounting_id>*
+**syntax:** *http_accounting_id \<accounting_id>*
 
 **default:** *http_accounting_id default*
 
@@ -60,7 +68,7 @@ This directive was first introduced in the v0.1 release, and can use variable in
 
 http_accounting_interval
 ------------------------
-**syntax:** *http_accounting_interval <seconds>*
+**syntax:** *http_accounting_interval \<seconds>*
 
 **default:** *http_accounting_interval 60*
 
