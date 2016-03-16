@@ -37,6 +37,20 @@ static ngx_command_t  ngx_http_accounting_commands[] = {
       0,
       NULL},
 
+    { ngx_string("http_accounting_interval"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_sec_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_accounting_main_conf_t, interval),
+      NULL},
+
+    { ngx_string("http_accounting_perturb"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_accounting_main_conf_t, perturb),
+      NULL},
+
     { ngx_string("http_accounting_log"),
       NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_slot,
@@ -126,6 +140,8 @@ ngx_http_accounting_create_main_conf(ngx_conf_t *cf)
     }
 
     amcf->enable = NGX_CONF_UNSET;
+    amcf->interval = NGX_CONF_UNSET;
+    amcf->perturb = NGX_CONF_UNSET;
 
     return amcf;
 }
@@ -137,8 +153,15 @@ ngx_http_accounting_init_main_conf(ngx_conf_t *cf, void *conf)
     ngx_http_accounting_main_conf_t *amcf = conf;
 
     if (amcf->enable == NGX_CONF_UNSET) {
-        amcf->enable = 0;
+      amcf->enable = 0;
     }
+    if (amcf->interval == NGX_CONF_UNSET) {
+      amcf->interval = 60;
+    }
+    if (amcf->perturb == NGX_CONF_UNSET) {
+      amcf->perturb = 0;
+    }
+    
 
     return NGX_CONF_OK;
 }
