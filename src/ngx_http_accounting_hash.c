@@ -32,6 +32,7 @@ ngx_http_accounting_hash_add(ngx_http_accounting_hash_t *hash,
 {
     ngx_array_t     *bucket;
     ngx_http_accounting_hash_elt_t *elt;
+    void *data;
 
     bucket = hash->buckets[key % hash->size];
 
@@ -55,7 +56,9 @@ ngx_http_accounting_hash_add(ngx_http_accounting_hash_t *hash,
     if (elt == NULL)
         return NGX_ERROR;
 
-    elt->name = name;
+    data = ngx_pcalloc(hash->pool, len+1);
+    ngx_memcpy(data, name, len);
+    elt->name = data;
     elt->len = len;
     elt->value = value;
 
