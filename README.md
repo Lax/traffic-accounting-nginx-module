@@ -32,7 +32,18 @@ http{
             http_accounting_id  accounting_id_str;
             ...
         }
+
+        location /api {
+            # for pc
+            http_accounting_id  accounting_id_pc;
+            # for mobile
+            if ($http_user_agent ~* '(Android|webOS|iPhone|iPod|BlackBerry)') {
+                http_accounting_id  accounting_id_mobile;
+            }
+            ...
+        }
     }
+
 }
 ```
 
@@ -60,7 +71,7 @@ http_accounting_id
 
 **default:** *http_accounting_id default*
 
-**content:** *server, location*
+**content:** *server, location, if in location*
 
 Specifies current request belongs to which accounting_id.
 
