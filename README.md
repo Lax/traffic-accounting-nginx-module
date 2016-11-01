@@ -71,7 +71,7 @@ http_accounting_id
 
 **default:** *http_accounting_id default*
 
-**content:** *server, location, if in location*
+**context:** *server, location, if in location*
 
 Specifies current request belongs to which accounting_id.
 
