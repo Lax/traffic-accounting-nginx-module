@@ -1,4 +1,6 @@
 # Installation
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Fngx_http_accounting_module.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Fngx_http_accounting_module?ref=badge_shield)
+
 
 Configure ngx_http_accounting_module as nginx module with ```--add-module``` when build nginx.
 
@@ -133,3 +135,6 @@ Liu Lantao [Github](https://github.com/Lax)
 # License
 
 GPLv3
+
+
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Fngx_http_accounting_module.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Fngx_http_accounting_module?ref=badge_large)
