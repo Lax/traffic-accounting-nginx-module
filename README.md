@@ -1,3 +1,8 @@
+# About
+
+Realtime netflow and status code monitor solution for nginx, need less memory and cpu than realtime log analyzing.
+Useful for http traffic accounting based on nginx config logic ( per-location-traffic or per-server-traffic ). 
+
 # Installation
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Fngx_http_accounting_module.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Fngx_http_accounting_module?ref=badge_shield)
 
