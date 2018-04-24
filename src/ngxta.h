@@ -60,4 +60,22 @@ extern ngxta_period_rbtree_t  *ngxta_previous_metrics;
 ngx_int_t ngxta_period_init(ngx_pool_t *pool);
 ngx_int_t ngxta_period_rotate(ngx_pool_t *pool);
 
+/*
+ * Log
+ */
+
+ngx_int_t ngxta_log_open(ngx_cycle_t *cycle, ngx_log_t *log, ngx_str_t *log_path);
+
+#if (NGX_HAVE_VARIADIC_MACROS)
+typedef void(ngxta_log_func_t)(ngx_uint_t level, ngx_log_t *log, ngx_err_t err, const char *fmt, ...);
+
+void ngxta_log(ngx_uint_t level, ngx_log_t *log, ngx_err_t err, const char *fmt, ...);
+#else
+typedef void(ngxta_log_func_t)(ngx_uint_t level, ngx_log_t *log, ngx_err_t err, const char *fmt, va_list args)
+
+void ngxta_log(ngx_uint_t level, ngx_log_t *log, ngx_err_t err, const char *fmt, va_list args)
+#endif
+
+extern ngx_log_t *ngxta_logger;
+
 #endif /* _NGX_TRAFFIC_METRICS_H_INCLUDED_ */
