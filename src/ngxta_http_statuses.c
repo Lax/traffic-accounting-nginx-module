@@ -2,7 +2,7 @@
 
 #include <ngx_http.h>
 
-#define NGX_HTTP_MAX_STATUS NGX_HTTP_SERVICE_UNAVAILABLE
+#define NGX_HTTP_MAX_STATUS NGX_HTTP_INSUFFICIENT_STORAGE
 
 ngx_uint_t http_statuses[] = {
     NGX_TRAFFIC_METRICS_STATUS_UNSET,
