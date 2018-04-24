@@ -1,20 +1,19 @@
 # About
 
-Realtime netflow and status code monitor solution for nginx, need less memory and cpu than realtime log analyzing.
-Useful for http traffic accounting based on nginx config logic ( per-location-traffic or per-server-traffic ). 
+Monitor the incoming and outgoing traffic metrics in realtime for NGINX stream subsystem.
+
+Realtime traffic and status code monitor solution for NGINX, need less memory and cpu than realtime log analyzing.
+Useful for http traffic accounting based on NGINX config logic ( by-location or by-server or by-user-defined-variable ).
 
 # Installation
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Fngx_http_accounting_module.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Fngx_http_accounting_module?ref=badge_shield)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Fnginx-http-accounting-module.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Fnginx-http-accounting-module?ref=badge_shield)
 
 
-Configure ngx_http_accounting_module as nginx module with ```--add-module``` when build nginx.
+Configure `nginx-http-accounting-module` as NGINX module with ```--add-module``` when build NGINX.
 
     cd /path/to/nginx-src/
-
-    git clone https://github.com/Lax/ngx_http_accounting_module.git -b v1.0
-
-    ./configure --add-module=ngx_http_accounting_module
-
+    git clone https://github.com/Lax/nginx-http-accounting-module.git
+    ./configure --add-module=nginx-http-accounting-module
     make && make install
 
 # Configuration
@@ -133,13 +132,25 @@ The output contains a list of k/v for the accounting metrics, in the sequence of
 * master : new feathers
 * v2-freeze-20110526 : works with nginx version(0.7.xx, 0.8.xx), nginx 0.9 is not tested. didn't work with nginx above 1.0.x.
 
+# Contributing
+
+1. Fork it ( https://github.com/Lax/nginx-http-accounting-module/fork )
+2. Create your feature branch (`git checkout -b my-new-feature`)
+3. Commit your changes (`git commit -am 'Add some feature'`)
+4. Push to the branch (`git push origin my-new-feature`)
+5. Create a new Pull Request
+
+[Known issues](https://github.com/Lax/nginx-http-accounting-module/issues?q=)
+
 # Author
 
-Liu Lantao [Github](https://github.com/Lax)
+Liu Lantao [Github@Lax](https://github.com/Lax)
+
+[Contributors](https://github.com/Lax/nginx-http-accounting-module/graphs/contributors)
 
 # License
 
-GPLv3
+[GPLv3](LICENSE)
 
 
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Fngx_http_accounting_module.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Fngx_http_accounting_module?ref=badge_large)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Fnginx-http-accounting-module.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Fnginx-http-accounting-module?ref=badge_large)
