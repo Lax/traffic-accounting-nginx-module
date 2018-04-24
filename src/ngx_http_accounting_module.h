@@ -21,4 +21,6 @@ typedef struct {
 
 extern ngx_module_t ngx_http_accounting_module;
 
+#define NGX_TRAFFIC_METRICS_CONF_INDEX_UNSET -128
+
 #endif /* _NGX_HTTP_ACCOUNTING_MODULE_H_INCLUDED_ */

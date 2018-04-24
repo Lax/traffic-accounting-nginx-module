@@ -7,6 +7,7 @@
 #include <syslog.h>
 #include <sys/file.h>
 
+#include "ngxta.h"
 #include "ngx_http_accounting_hash.h"
 #include "ngx_http_accounting_module.h"
 #include "ngx_http_accounting_common.h"
@@ -44,6 +45,7 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
     }
 
     init_http_status_code_map();
+    ngxta_period_init(cycle->pool);
 
     time = ngx_timeofday();
 
@@ -98,41 +100,79 @@ ngx_int_t
 ngx_http_accounting_handler(ngx_http_request_t *r)
 {
     ngx_str_t      *accounting_id;
-    ngx_uint_t      key;
 
     ngx_uint_t      status;
-    ngx_uint_t     *status_array;
 
 
-    ngx_http_accounting_stats_t *stats;
 
     ngx_time_t * time = ngx_timeofday();
 
     accounting_id = get_accounting_id(r);
+    if (accounting_id == NULL)
+        return NGX_ERROR;
+
+    ngxta_metrics_rbnode_t *metrics = ngxta_period_rbtree_lookup_metrics(ngxta_current_metrics, accounting_id);
+
+    if (metrics == NULL) {
+        ngxta_period_rbtree_insert(ngxta_current_metrics, accounting_id);
+
+        metrics = ngxta_period_rbtree_lookup_metrics(ngxta_current_metrics, accounting_id);
+        if (metrics == NULL)
+            return NGX_ERROR;
+
+        if (ngx_strcmp(accounting_id->data, metrics->name.data) != 0)
+            return NGX_ERROR;
+
+        metrics->nr_statuses = ngx_pcalloc(ngxta_current_metrics->pool, sizeof(ngx_uint_t) * statuses_count(http_statuses));
+        if (metrics->nr_statuses == NULL)
+            return NGX_ERROR;
+    }
+
+    metrics->nr_entities += 1;
+    metrics->bytes_in += r->request_length;
+    metrics->bytes_out += r->connection->sent;
+
+    if (r->err_status) {
+        status = r->err_status;
+    } else if (r->headers_out.status) {
+        status = r->headers_out.status;
+    } else {
+        status = NGX_HTTP_DEFAULT;
+    }
+    metrics->nr_statuses[statuses_bsearch(http_statuses, &status)] += 1;
 
     ngx_uint_t req_latency_ms = (time->sec * 1000 + time->msec) - (r->start_sec * 1000 + r->start_msec);
+    metrics->total_latency_ms += req_latency_ms;
 
     // following magic airlifted from ngx_http_upstream.c:4416-4423
+    ngx_http_upstream_state_t       *state;
     ngx_uint_t upstream_req_latency_ms = 0;
-    ngx_http_upstream_state_t  *state;
-
     if (r->upstream_states != NULL && r->upstream_states->nelts != 0) {
         state = r->upstream_states->elts;
+
         if (state[0].status) {
             // not even checking the status here...
-			#if (nginx_version < 1009000)
-			upstream_req_latency_ms = (state[0].response_sec * 1000 + state[0].response_msec);
-			#else
-			upstream_req_latency_ms = state[0].response_time;
-			#endif
+        #if (nginx_version < 1009000)
+            upstream_req_latency_ms = (state[0].response_sec * 1000 + state[0].response_msec);
+        #else
+            upstream_req_latency_ms = state[0].response_time;
+        #endif
         }
     }
+    metrics->total_upstream_latency_ms += upstream_req_latency_ms;
+
+    ngxta_current_metrics->updated_at = ngx_timeofday();
+
+
     // TODO: key should be cached to save CPU time
+    ngx_uint_t key;
+    ngx_http_accounting_stats_t *stats;
+    ngx_uint_t     *status_array;
+
     key = ngx_hash_key_lc(accounting_id->data, accounting_id->len);
     stats = ngx_http_accounting_hash_find(&stats_hash, key, accounting_id->data, accounting_id->len);
 
     if (stats == NULL) {
-
         stats = ngx_pcalloc(stats_hash.pool, sizeof(ngx_http_accounting_stats_t));
         status_array = ngx_pcalloc(stats_hash.pool, sizeof(ngx_uint_t) * http_status_code_count);
 
@@ -143,14 +183,6 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
         ngx_http_accounting_hash_add(&stats_hash, key, accounting_id->data, accounting_id->len, stats);
     }
 
-    if (r->err_status) {
-        status = r->err_status;
-    } else if (r->headers_out.status) {
-        status = r->headers_out.status;
-    } else {
-        status = NGX_HTTP_DEFAULT;
-    }
-
     stats->nr_requests += 1;
     stats->bytes_in += r->request_length;
     stats->bytes_out += r->connection->sent;
@@ -158,7 +190,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
     stats->total_upstream_latency_ms += upstream_req_latency_ms;
     stats->http_status_code[http_status_code_to_index_map[status]] += 1;
 
-    return NGX_OK;
+    return NGX_DECLINED;
 }
 
 
@@ -274,9 +306,17 @@ get_accounting_id(ngx_http_request_t *r)
     static ngx_str_t accounting_id;
 
     alcf = ngx_http_get_module_loc_conf(r, ngx_http_accounting_module);
+    if (alcf == NULL)
+        return NULL;
 
-    if (alcf->index > 0) {
+    if (alcf->index != NGX_CONF_UNSET &&
+        alcf->index != NGX_TRAFFIC_METRICS_CONF_INDEX_UNSET) {
         vv = ngx_http_get_indexed_variable(r, alcf->index);
+
+        if ((vv != NULL) && (vv->not_found)) {
+            vv->no_cacheable = 1;
+            return NULL;
+        }
 
         if ((vv != NULL) && (!vv->not_found)) {
             accounting_id.len = vv->len;
