@@ -2,6 +2,7 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
+#include "ngxta.h"
 #include "ngx_http_accounting_hash.h"
 #include "ngx_http_accounting_common.h"
 #include "ngx_http_accounting_module.h"
@@ -103,6 +104,31 @@ ngx_http_accounting_init(ngx_conf_t *cf)
         return NGX_OK;
     }
 
+    if (amcf->log.len > 0) {
+      ngxta_logger = ngx_pcalloc(cf->cycle->pool, sizeof(ngx_log_t));
+      if (ngxta_logger == NULL)
+          return NGX_ERROR;
+
+      if (NGX_OK != ngxta_log_open(cf->cycle, ngxta_logger, &amcf->log))
+          ngxta_logger = NULL;
+    }
+
+    if (ngxta_logger != NULL
+        && ngxta_logger->file->name.len > 0
+        && ngxta_logger->file->fd != NGX_INVALID_FILE ) {
+
+        ngxta_log = ngxta_log_core;
+
+        ngx_log_error(NGX_LOG_INFO, ngx_cycle->log, 0,
+                    "pid:%i|stream_accounting_logger:%s",
+                    ngx_getpid(),
+                    ngxta_logger->file->name.data );
+    }
+    // else {
+    //     ngxta_logger = ngx_cycle->log;
+    //     ngxta_log = ngx_log_error_core;
+    // }
+
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
 
     h = ngx_array_push(&cmcf->phases[NGX_HTTP_LOG_PHASE].handlers);
@@ -162,7 +188,6 @@ ngx_http_accounting_init_main_conf(ngx_conf_t *cf, void *conf)
     if (amcf->perturb == NGX_CONF_UNSET) {
       amcf->perturb = 0;
     }
-    
 
     return NGX_CONF_OK;
 }

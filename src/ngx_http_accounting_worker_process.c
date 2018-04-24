@@ -7,6 +7,7 @@
 #include <syslog.h>
 #include <sys/file.h>
 
+#include "ngxta.h"
 #include "ngx_http_accounting_hash.h"
 #include "ngx_http_accounting_module.h"
 #include "ngx_http_accounting_common.h"
@@ -21,8 +22,6 @@ static ngx_http_accounting_hash_t  stats_hash;
 
 static ngx_int_t ngx_http_accounting_old_time = 0;
 static ngx_int_t ngx_http_accounting_new_time = 0;
-static ngx_str_t ngx_http_accounting_log;
-static ngx_fd_t ngx_http_accounting_log_fd = NGX_INVALID_FILE;
 
 static u_char *ngx_http_accounting_title = (u_char *)"NgxAccounting";
 
@@ -49,7 +48,6 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
 
     ngx_http_accounting_old_time = time->sec;
     ngx_http_accounting_new_time = time->sec;
-    ngx_http_accounting_log = amcf->log;
     worker_process_timer_interval = amcf->interval;
     worker_process_timer_perturb = amcf->perturb;
 
@@ -165,11 +163,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
 static ngx_int_t
 worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1, void *para2)
 {
-    ngx_uint_t   i;
     ngx_http_accounting_stats_t  *stats;
-
-    char temp_buffer[128];
-    char output_buffer[1024];
 
     stats = (ngx_http_accounting_stats_t *)val;
 
@@ -187,43 +181,84 @@ worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1,
         return NGX_OK;
     }
 
-    sprintf(output_buffer, "pid:%i|from:%ld|to:%ld|accounting_id:%s|requests:%ld|bytes_in:%ld|bytes_out:%ld|latency_ms:%lu|upstream_latency_ms:%lu",
-                ngx_getpid(),
-                ngx_http_accounting_old_time,
-                ngx_http_accounting_new_time,
-                name,
-                stats->nr_requests,
-                stats->bytes_in,
-                stats->bytes_out,
-                stats->total_latency_ms,
-                stats->total_upstream_latency_ms
-            );
+    // statuses_msg;
+    ngx_str_t     statuses_msg;
+    u_char        msg_str[NGX_MAX_ERROR_STR];
+    u_char        *p, *last;
+    ngx_uint_t     i;
+
+    p = msg_str;
+    last = msg_str + NGX_MAX_ERROR_STR;
+
+    for (i = 0; i < http_status_code_count; i++) {
+        if(stats->http_status_code[i] > 0) {
+
+            if (p != msg_str)
+                *p++ = '|';
+
+            p = ngx_slprintf(p, last, "%i:%i",
+                index_to_http_status_code_map[i],
+                stats->http_status_code[i] );
+
+            stats->http_status_code[i] = 0;
+        }
+    }
+
+    if (p > last - NGX_LINEFEED_SIZE) {
+        p = last - NGX_LINEFEED_SIZE;
+    }
+
+    *p++ = '\0';
+
+    statuses_msg.len  = p - msg_str;
+    statuses_msg.data = msg_str;
+
+    if (ngxta_log != NULL && ngxta_logger != NULL) {
+        ngxta_log(NGX_LOG_NOTICE, ngxta_logger, 0,
+                      "pid:%i|from:%i|to:%i|accounting_id:%s|requests:%ui|bytes_in:%ui|bytes_out:%ui|latency_ms:%ui|upstream_latency_ms:%ui|%V",
+                      ngx_getpid(),
+                      ngx_http_accounting_old_time,
+                      ngx_http_accounting_new_time,
+                      name,
+                      stats->nr_requests,
+                      stats->bytes_in,
+                      stats->bytes_out,
+                      stats->total_latency_ms,
+                      stats->total_upstream_latency_ms,
+                      &statuses_msg );
+    } else {
+        u_char output_buffer[NGX_MAX_ERROR_STR];
+
+        p = output_buffer;
+        last = output_buffer + NGX_MAX_ERROR_STR;
+
+        p = ngx_slprintf(p, last,
+                      "pid:%i|from:%i|to:%i|accounting_id:%s|requests:%ui|bytes_in:%ui|bytes_out:%ui|latency_ms:%ui|upstream_latency_ms:%ui|%V",
+                      ngx_getpid(),
+                      ngx_http_accounting_old_time,
+                      ngx_http_accounting_new_time,
+                      name,
+                      stats->nr_requests,
+                      stats->bytes_in,
+                      stats->bytes_out,
+                      stats->total_latency_ms,
+                      stats->total_upstream_latency_ms,
+                      &statuses_msg );
+
+        if (p > last - NGX_LINEFEED_SIZE) {
+            p = last - NGX_LINEFEED_SIZE;
+        }
+
+        *p++ = '\0';
+
+        syslog(LOG_INFO, "%s", output_buffer);
+    }
 
     stats->nr_requests = 0;
     stats->bytes_in = 0;
     stats->bytes_out = 0;
     stats->total_latency_ms = 0;
     stats->total_upstream_latency_ms = 0;
-
-    for (i = 0; i < http_status_code_count; i++) {
-        if(stats->http_status_code[i] > 0) {
-            sprintf(temp_buffer, "|%ld:%ld",
-                        index_to_http_status_code_map[i],
-                        stats->http_status_code[i]);
-
-            strcat(output_buffer, temp_buffer);
-
-            stats->http_status_code[i] = 0;
-        }
-    }
-
-    if (ngx_http_accounting_log_fd != NGX_INVALID_FILE) {
-        size_t len = ngx_strlen(output_buffer);
-        output_buffer[len] = '\n';
-        ngx_write_fd(ngx_http_accounting_log_fd, output_buffer, len+1);
-    } else {
-        syslog(LOG_INFO, "%s", output_buffer);
-    }
 
     return NGX_OK;
 }
@@ -240,22 +275,7 @@ worker_process_alarm_handler(ngx_event_t *ev)
     ngx_http_accounting_old_time = ngx_http_accounting_new_time;
     ngx_http_accounting_new_time = time->sec;
 
-    if (ngx_http_accounting_log.len) {
-        ngx_http_accounting_log_fd = ngx_open_file(ngx_http_accounting_log.data, NGX_FILE_APPEND, NGX_FILE_CREATE_OR_OPEN, NGX_FILE_DEFAULT_ACCESS);
-        if (ngx_http_accounting_log_fd == NGX_INVALID_FILE) {
-            syslog(LOG_INFO, "Invalid file: %s", ngx_http_accounting_log.data);
-        }
-        if (flock(ngx_http_accounting_log_fd, LOCK_EX|LOCK_NB) == -1) {
-            return; // In the unlikely case that the lock cannot be obtained we will try again on the next alarm
-        }
-    }
-
     ngx_http_accounting_hash_iterate(&stats_hash, worker_process_write_out_stats, NULL, NULL);
-
-    if (ngx_http_accounting_log_fd != NGX_INVALID_FILE) {
-        ngx_close_file(ngx_http_accounting_log_fd);
-        ngx_http_accounting_log_fd = NGX_INVALID_FILE;
-    }
 
     if (ngx_exiting || ev == NULL)
         return;
