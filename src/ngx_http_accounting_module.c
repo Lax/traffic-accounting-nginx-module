@@ -105,28 +105,27 @@ ngx_http_accounting_init(ngx_conf_t *cf)
     }
 
     if (amcf->log.len > 0) {
-      ngxta_logger = ngx_pcalloc(cf->cycle->pool, sizeof(ngx_log_t));
-      if (ngxta_logger == NULL)
-          return NGX_ERROR;
+        ngxta_log = ngx_pcalloc(cf->cycle->pool, sizeof(ngx_log_t));
+        if (ngxta_log == NULL)
+            return NGX_ERROR;
 
-      if (NGX_OK != ngxta_log_open(cf->cycle, ngxta_logger, &amcf->log))
-          ngxta_logger = NULL;
+        if (NGX_OK != ngxta_log_open(cf->cycle, ngxta_log, &amcf->log)) {
+            // ngxta_log = NULL;
+            return NGX_ERROR;
+        }
     }
 
-    if (ngxta_logger != NULL
-        && ngxta_logger->file->name.len > 0
-        && ngxta_logger->file->fd != NGX_INVALID_FILE ) {
-
-        ngxta_log = ngxta_log_core;
+    if (ngxta_log != NULL
+        && ngxta_log->file->name.len > 0
+        && ngxta_log->file->fd != NGX_INVALID_FILE ) {
 
         ngx_log_error(NGX_LOG_INFO, ngx_cycle->log, 0,
-                    "pid:%i|stream_accounting_logger:%s",
+                    "pid:%i|accounting log to file: %V",
                     ngx_getpid(),
-                    ngxta_logger->file->name.data );
+                    ngxta_log->file->name );
     }
     // else {
-    //     ngxta_logger = ngx_cycle->log;
-    //     ngxta_log = ngx_log_error_core;
+    //     ngxta_log = ngx_cycle->log;
     // }
 
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
