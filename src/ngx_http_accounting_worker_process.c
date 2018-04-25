@@ -126,11 +126,11 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
         state = r->upstream_states->elts;
         if (state[0].status) {
             // not even checking the status here...
-			#if (nginx_version < 1009000)
-			upstream_req_latency_ms = (state[0].response_sec * 1000 + state[0].response_msec);
-			#else
-			upstream_req_latency_ms = state[0].response_time;
-			#endif
+#if (nginx_version < 1009000)
+            upstream_req_latency_ms = (state[0].response_sec * 1000 + state[0].response_msec);
+#else
+            upstream_req_latency_ms = state[0].response_time;
+#endif
         }
     }
     // TODO: key should be cached to save CPU time
