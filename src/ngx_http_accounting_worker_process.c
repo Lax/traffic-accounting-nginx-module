@@ -163,7 +163,12 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
 static ngx_int_t
 worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1, void *para2)
 {
+    ngx_uint_t    i;
     ngx_http_accounting_stats_t  *stats;
+
+    ngx_str_t     accounting_msg;
+    u_char        msg_buf[NGX_MAX_ERROR_STR];
+    u_char       *p, *last;
 
     stats = (ngx_http_accounting_stats_t *)val;
 
@@ -181,24 +186,35 @@ worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1,
         return NGX_OK;
     }
 
-    // statuses_msg;
-    ngx_str_t     statuses_msg;
-    u_char        msg_str[NGX_MAX_ERROR_STR];
-    u_char        *p, *last;
-    ngx_uint_t     i;
+    // Output message buffer
+    p = msg_buf;
+    last = msg_buf + NGX_MAX_ERROR_STR;
 
-    p = msg_str;
-    last = msg_str + NGX_MAX_ERROR_STR;
+    p = ngx_slprintf(p, last,
+                "pid:%i|from:%i|to:%i|accounting_id:%s|requests:%ui|bytes_in:%ui|bytes_out:%ui|latency_ms:%ui|upstream_latency_ms:%ui",
+                ngx_getpid(),
+                ngx_http_accounting_old_time,
+                ngx_http_accounting_new_time,
+                name,
+                stats->nr_requests,
+                stats->bytes_in,
+                stats->bytes_out,
+                stats->total_latency_ms,
+                stats->total_upstream_latency_ms
+            );
+
+    stats->nr_requests = 0;
+    stats->bytes_in = 0;
+    stats->bytes_out = 0;
+    stats->total_latency_ms = 0;
+    stats->total_upstream_latency_ms = 0;
 
     for (i = 0; i < http_status_code_count; i++) {
         if(stats->http_status_code[i] > 0) {
 
-            if (p != msg_str)
-                *p++ = '|';
-
-            p = ngx_slprintf(p, last, "%i:%i",
-                index_to_http_status_code_map[i],
-                stats->http_status_code[i] );
+            p = ngx_slprintf(p, last, "|%i:%i",
+                        index_to_http_status_code_map[i],
+                        stats->http_status_code[i] );
 
             stats->http_status_code[i] = 0;
         }
@@ -210,55 +226,14 @@ worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1,
 
     *p++ = '\0';
 
-    statuses_msg.len  = p - msg_str;
-    statuses_msg.data = msg_str;
+    accounting_msg.len  = p - msg_buf;
+    accounting_msg.data = msg_buf;
 
     if (ngxta_log != NULL && ngxta_logger != NULL) {
-        ngxta_log(NGX_LOG_NOTICE, ngxta_logger, 0,
-                      "pid:%i|from:%i|to:%i|accounting_id:%s|requests:%ui|bytes_in:%ui|bytes_out:%ui|latency_ms:%ui|upstream_latency_ms:%ui|%V",
-                      ngx_getpid(),
-                      ngx_http_accounting_old_time,
-                      ngx_http_accounting_new_time,
-                      name,
-                      stats->nr_requests,
-                      stats->bytes_in,
-                      stats->bytes_out,
-                      stats->total_latency_ms,
-                      stats->total_upstream_latency_ms,
-                      &statuses_msg );
+        ngxta_log(NGX_LOG_NOTICE, ngxta_logger, 0, "%V", &accounting_msg);
     } else {
-        u_char output_buffer[NGX_MAX_ERROR_STR];
-
-        p = output_buffer;
-        last = output_buffer + NGX_MAX_ERROR_STR;
-
-        p = ngx_slprintf(p, last,
-                      "pid:%i|from:%i|to:%i|accounting_id:%s|requests:%ui|bytes_in:%ui|bytes_out:%ui|latency_ms:%ui|upstream_latency_ms:%ui|%V",
-                      ngx_getpid(),
-                      ngx_http_accounting_old_time,
-                      ngx_http_accounting_new_time,
-                      name,
-                      stats->nr_requests,
-                      stats->bytes_in,
-                      stats->bytes_out,
-                      stats->total_latency_ms,
-                      stats->total_upstream_latency_ms,
-                      &statuses_msg );
-
-        if (p > last - NGX_LINEFEED_SIZE) {
-            p = last - NGX_LINEFEED_SIZE;
-        }
-
-        *p++ = '\0';
-
-        syslog(LOG_INFO, "%s", output_buffer);
+        syslog(LOG_INFO, "%s", msg_buf);
     }
-
-    stats->nr_requests = 0;
-    stats->bytes_in = 0;
-    stats->bytes_out = 0;
-    stats->total_latency_ms = 0;
-    stats->total_upstream_latency_ms = 0;
 
     return NGX_OK;
 }
