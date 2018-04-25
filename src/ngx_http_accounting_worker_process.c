@@ -72,7 +72,7 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
     srand(ngx_getpid());
     time_t perturb_factor = 1;
     if (worker_process_timer_perturb) {
-      perturb_factor = (1000-rand()%200);
+        perturb_factor = (1000-rand()%200);
     }
 
     ngx_add_timer(&write_out_ev, worker_process_timer_interval * perturb_factor);

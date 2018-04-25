@@ -179,13 +179,13 @@ ngx_http_accounting_init_main_conf(ngx_conf_t *cf, void *conf)
     ngx_http_accounting_main_conf_t *amcf = conf;
 
     if (amcf->enable == NGX_CONF_UNSET) {
-      amcf->enable = 0;
+        amcf->enable = 0;
     }
     if (amcf->interval == NGX_CONF_UNSET) {
-      amcf->interval = 60;
+        amcf->interval = 60;
     }
     if (amcf->perturb == NGX_CONF_UNSET) {
-      amcf->perturb = 0;
+        amcf->perturb = 0;
     }
 
     return NGX_CONF_OK;
