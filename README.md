@@ -150,7 +150,7 @@ Liu Lantao [Github@Lax](https://github.com/Lax)
 
 # License
 
-[GPLv3](LICENSE)
+[BSD-2-Clause](LICENSE)
 
 
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Fnginx-http-accounting-module.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Fnginx-http-accounting-module?ref=badge_large)
