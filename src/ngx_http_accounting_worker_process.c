@@ -66,6 +66,7 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
     write_out_ev.data = NULL;
     write_out_ev.log = cycle->log;
     write_out_ev.handler = worker_process_alarm_handler;
+    write_out_ev.cancelable = 1;
 
     srand(ngx_getpid());
     time_t perturb_factor = 1;
