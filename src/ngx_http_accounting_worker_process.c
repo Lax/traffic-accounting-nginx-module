@@ -51,8 +51,8 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
     worker_process_timer_interval = amcf->interval;
     worker_process_timer_perturb = amcf->perturb;
 
-    if (ngxta_log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, ngxta_log, 0, "pid:%i|worker process start accounting", ngx_getpid());
+    if (ngxta_log.file->fd != NGX_INVALID_FILE) {
+        ngx_log_error(NGX_LOG_NOTICE, &ngxta_log, 0, "pid:%i|worker process start accounting", ngx_getpid());
     } else {
         openlog((char *)ngx_http_accounting_title, LOG_NDELAY, LOG_SYSLOG);
         syslog(LOG_INFO, "pid:%i|worker process start accounting", ngx_getpid());
@@ -68,6 +68,7 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
     write_out_ev.data = NULL;
     write_out_ev.log = cycle->log;
     write_out_ev.handler = worker_process_alarm_handler;
+    write_out_ev.cancelable = 1;
 
     srand(ngx_getpid());
     time_t perturb_factor = 1;
@@ -93,8 +94,8 @@ void ngx_http_accounting_worker_process_exit(ngx_cycle_t *cycle)
 
     worker_process_alarm_handler(NULL);
 
-    if (ngxta_log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, ngxta_log, 0, "pid:%i|worker process stop accounting", ngx_getpid());
+    if (ngxta_log.file->fd != NGX_INVALID_FILE) {
+        ngx_log_error(NGX_LOG_NOTICE, &ngxta_log, 0, "pid:%i|worker process stop accounting", ngx_getpid());
     } else {
         syslog(LOG_INFO, "pid:%i|worker process stop accounting", ngx_getpid());
     }
@@ -237,8 +238,8 @@ worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1,
     accounting_msg.len  = p - msg_buf;
     accounting_msg.data = msg_buf;
 
-    if (ngxta_log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, ngxta_log, 0, "%V", &accounting_msg);
+    if (ngxta_log.file->fd != NGX_INVALID_FILE) {
+        ngx_log_error(NGX_LOG_NOTICE, &ngxta_log, 0, "%V", &accounting_msg);
     } else {
         syslog(LOG_INFO, "%s", msg_buf);
     }

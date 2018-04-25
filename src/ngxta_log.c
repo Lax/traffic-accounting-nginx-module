@@ -1,6 +1,6 @@
 #include "ngxta.h"
 
-ngx_log_t *ngxta_log = NULL;
+ngx_log_t ngxta_log;
 
 ngx_int_t
 ngxta_log_open(ngx_cycle_t *cycle, ngx_log_t *log, ngx_str_t *log_path)
