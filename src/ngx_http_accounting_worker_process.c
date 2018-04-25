@@ -7,6 +7,7 @@
 #include <syslog.h>
 #include <sys/file.h>
 
+#include "ngxta.h"
 #include "ngx_http_accounting_hash.h"
 #include "ngx_http_accounting_module.h"
 #include "ngx_http_accounting_common.h"
@@ -21,8 +22,6 @@ static ngx_http_accounting_hash_t  stats_hash;
 
 static ngx_int_t ngx_http_accounting_old_time = 0;
 static ngx_int_t ngx_http_accounting_new_time = 0;
-static ngx_str_t ngx_http_accounting_log;
-static ngx_fd_t ngx_http_accounting_log_fd = NGX_INVALID_FILE;
 
 static u_char *ngx_http_accounting_title = (u_char *)"NgxAccounting";
 
@@ -49,12 +48,15 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
 
     ngx_http_accounting_old_time = time->sec;
     ngx_http_accounting_new_time = time->sec;
-    ngx_http_accounting_log = amcf->log;
     worker_process_timer_interval = amcf->interval;
     worker_process_timer_perturb = amcf->perturb;
 
-    openlog((char *)ngx_http_accounting_title, LOG_NDELAY, LOG_SYSLOG);
-    syslog(LOG_INFO, "pid:%i|Process:init", ngx_getpid());
+    if (ngxta_log.file->fd != NGX_INVALID_FILE) {
+        ngx_log_error(NGX_LOG_NOTICE, &ngxta_log, 0, "pid:%i|worker process start accounting", ngx_getpid());
+    } else {
+        openlog((char *)ngx_http_accounting_title, LOG_NDELAY, LOG_SYSLOG);
+        syslog(LOG_INFO, "pid:%i|worker process start accounting", ngx_getpid());
+    }
 
     rc = ngx_http_accounting_hash_init(&stats_hash, NGX_HTTP_ACCOUNTING_NR_BUCKETS, cycle->pool);
     if (rc != NGX_OK) {
@@ -71,7 +73,7 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
     srand(ngx_getpid());
     time_t perturb_factor = 1;
     if (worker_process_timer_perturb) {
-      perturb_factor = (1000-rand()%200);
+        perturb_factor = (1000-rand()%200);
     }
 
     ngx_add_timer(&write_out_ev, worker_process_timer_interval * perturb_factor);
@@ -92,7 +94,11 @@ void ngx_http_accounting_worker_process_exit(ngx_cycle_t *cycle)
 
     worker_process_alarm_handler(NULL);
 
-    syslog(LOG_INFO, "pid:%i|Process:exit", ngx_getpid());
+    if (ngxta_log.file->fd != NGX_INVALID_FILE) {
+        ngx_log_error(NGX_LOG_NOTICE, &ngxta_log, 0, "pid:%i|worker process stop accounting", ngx_getpid());
+    } else {
+        syslog(LOG_INFO, "pid:%i|worker process stop accounting", ngx_getpid());
+    }
 }
 
 ngx_int_t
@@ -121,11 +127,11 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
         state = r->upstream_states->elts;
         if (state[0].status) {
             // not even checking the status here...
-			#if (nginx_version < 1009000)
-			upstream_req_latency_ms = (state[0].response_sec * 1000 + state[0].response_msec);
-			#else
-			upstream_req_latency_ms = state[0].response_time;
-			#endif
+#if (nginx_version < 1009000)
+            upstream_req_latency_ms = (state[0].response_sec * 1000 + state[0].response_msec);
+#else
+            upstream_req_latency_ms = state[0].response_time;
+#endif
         }
     }
     // TODO: key should be cached to save CPU time
@@ -166,11 +172,12 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
 static ngx_int_t
 worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1, void *para2)
 {
-    ngx_uint_t   i;
+    ngx_uint_t    i;
     ngx_http_accounting_stats_t  *stats;
 
-    char temp_buffer[128];
-    char output_buffer[1024];
+    ngx_str_t     accounting_msg;
+    u_char        msg_buf[NGX_MAX_ERROR_STR];
+    u_char       *p, *last;
 
     stats = (ngx_http_accounting_stats_t *)val;
 
@@ -188,7 +195,12 @@ worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1,
         return NGX_OK;
     }
 
-    sprintf(output_buffer, "pid:%i|from:%ld|to:%ld|accounting_id:%s|requests:%ld|bytes_in:%ld|bytes_out:%ld|latency_ms:%lu|upstream_latency_ms:%lu",
+    // Output message buffer
+    p = msg_buf;
+    last = msg_buf + NGX_MAX_ERROR_STR;
+
+    p = ngx_slprintf(p, last,
+                "pid:%i|from:%i|to:%i|accounting_id:%s|requests:%ui|bytes_in:%ui|bytes_out:%ui|latency_ms:%ui|upstream_latency_ms:%ui",
                 ngx_getpid(),
                 ngx_http_accounting_old_time,
                 ngx_http_accounting_new_time,
@@ -208,22 +220,28 @@ worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1,
 
     for (i = 0; i < http_status_code_count; i++) {
         if(stats->http_status_code[i] > 0) {
-            sprintf(temp_buffer, "|%ld:%ld",
-                        index_to_http_status_code_map[i],
-                        stats->http_status_code[i]);
 
-            strcat(output_buffer, temp_buffer);
+            p = ngx_slprintf(p, last, "|%i:%i",
+                        index_to_http_status_code_map[i],
+                        stats->http_status_code[i] );
 
             stats->http_status_code[i] = 0;
         }
     }
 
-    if (ngx_http_accounting_log_fd != NGX_INVALID_FILE) {
-        size_t len = ngx_strlen(output_buffer);
-        output_buffer[len] = '\n';
-        ngx_write_fd(ngx_http_accounting_log_fd, output_buffer, len+1);
+    if (p > last - NGX_LINEFEED_SIZE) {
+        p = last - NGX_LINEFEED_SIZE;
+    }
+
+    *p++ = '\0';
+
+    accounting_msg.len  = p - msg_buf;
+    accounting_msg.data = msg_buf;
+
+    if (ngxta_log.file->fd != NGX_INVALID_FILE) {
+        ngx_log_error(NGX_LOG_NOTICE, &ngxta_log, 0, "%V", &accounting_msg);
     } else {
-        syslog(LOG_INFO, "%s", output_buffer);
+        syslog(LOG_INFO, "%s", msg_buf);
     }
 
     return NGX_OK;
@@ -241,22 +259,7 @@ worker_process_alarm_handler(ngx_event_t *ev)
     ngx_http_accounting_old_time = ngx_http_accounting_new_time;
     ngx_http_accounting_new_time = time->sec;
 
-    if (ngx_http_accounting_log.len) {
-        ngx_http_accounting_log_fd = ngx_open_file(ngx_http_accounting_log.data, NGX_FILE_APPEND, NGX_FILE_CREATE_OR_OPEN, NGX_FILE_DEFAULT_ACCESS);
-        if (ngx_http_accounting_log_fd == NGX_INVALID_FILE) {
-            syslog(LOG_INFO, "Invalid file: %s", ngx_http_accounting_log.data);
-        }
-        if (flock(ngx_http_accounting_log_fd, LOCK_EX|LOCK_NB) == -1) {
-            return; // In the unlikely case that the lock cannot be obtained we will try again on the next alarm
-        }
-    }
-
     ngx_http_accounting_hash_iterate(&stats_hash, worker_process_write_out_stats, NULL, NULL);
-
-    if (ngx_http_accounting_log_fd != NGX_INVALID_FILE) {
-        ngx_close_file(ngx_http_accounting_log_fd);
-        ngx_http_accounting_log_fd = NGX_INVALID_FILE;
-    }
 
     if (ngx_exiting || ev == NULL)
         return;

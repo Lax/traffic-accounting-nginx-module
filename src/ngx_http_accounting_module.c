@@ -2,6 +2,7 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
+#include "ngxta.h"
 #include "ngx_http_accounting_hash.h"
 #include "ngx_http_accounting_common.h"
 #include "ngx_http_accounting_module.h"
@@ -103,6 +104,24 @@ ngx_http_accounting_init(ngx_conf_t *cf)
         return NGX_OK;
     }
 
+    if (amcf->log.len > 0) {
+        if (NGX_OK != ngxta_log_open(cf->cycle, &ngxta_log, &amcf->log)) {
+            // ngxta_log = NULL;
+            return NGX_ERROR;
+        }
+
+        if (ngxta_log.file->name.len > 0
+            && ngxta_log.file->fd != NGX_INVALID_FILE ) {
+            ngx_log_error(NGX_LOG_INFO, ngx_cycle->log, 0,
+                        "pid:%i|accounting log to file: %V",
+                        ngx_getpid(),
+                        ngxta_log.file->name );
+        }
+    }
+    // else {
+    //     // ngxta_log = ngx_cycle->log;
+    // }
+
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
 
     h = ngx_array_push(&cmcf->phases[NGX_HTTP_LOG_PHASE].handlers);
@@ -154,15 +173,14 @@ ngx_http_accounting_init_main_conf(ngx_conf_t *cf, void *conf)
     ngx_http_accounting_main_conf_t *amcf = conf;
 
     if (amcf->enable == NGX_CONF_UNSET) {
-      amcf->enable = 0;
+        amcf->enable = 0;
     }
     if (amcf->interval == NGX_CONF_UNSET) {
-      amcf->interval = 60;
+        amcf->interval = 60;
     }
     if (amcf->perturb == NGX_CONF_UNSET) {
-      amcf->perturb = 0;
+        amcf->perturb = 0;
     }
-    
 
     return NGX_CONF_OK;
 }
