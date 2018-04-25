@@ -1,3 +1,9 @@
+
+/*
+ * Copyright (C) Liu Lantao
+ */
+
+
 #include "ngxta.h"
 
 ngx_log_t ngxta_log;

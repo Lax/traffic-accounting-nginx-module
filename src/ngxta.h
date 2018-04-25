@@ -1,3 +1,9 @@
+
+/*
+ * Copyright (C) Liu Lantao
+ */
+
+
 #ifndef _NGX_TRAFFIC_ACCOUNTING_H_INCLUDED_
 #define _NGX_TRAFFIC_ACCOUNTING_H_INCLUDED_
 
