@@ -51,8 +51,12 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
     worker_process_timer_interval = amcf->interval;
     worker_process_timer_perturb = amcf->perturb;
 
-    openlog((char *)ngx_http_accounting_title, LOG_NDELAY, LOG_SYSLOG);
-    syslog(LOG_INFO, "pid:%i|Process:init", ngx_getpid());
+    if (ngxta_log != NULL && ngxta_logger != NULL) {
+        ngxta_log(NGX_LOG_NOTICE, ngxta_logger, 0, "pid:%i|Process:init", ngx_getpid());
+    } else {
+        openlog((char *)ngx_http_accounting_title, LOG_NDELAY, LOG_SYSLOG);
+        syslog(LOG_INFO, "pid:%i|Process:init", ngx_getpid());
+    }
 
     rc = ngx_http_accounting_hash_init(&stats_hash, NGX_HTTP_ACCOUNTING_NR_BUCKETS, cycle->pool);
     if (rc != NGX_OK) {
@@ -89,7 +93,11 @@ void ngx_http_accounting_worker_process_exit(ngx_cycle_t *cycle)
 
     worker_process_alarm_handler(NULL);
 
-    syslog(LOG_INFO, "pid:%i|Process:exit", ngx_getpid());
+    if (ngxta_log != NULL && ngxta_logger != NULL) {
+        ngxta_log(NGX_LOG_NOTICE, ngxta_logger, 0, "pid:%i|Process:exit", ngx_getpid());
+    } else {
+        syslog(LOG_INFO, "pid:%i|Process:exit", ngx_getpid());
+    }
 }
 
 ngx_int_t
