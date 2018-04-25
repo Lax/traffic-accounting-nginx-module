@@ -5,7 +5,6 @@
 #include <nginx.h>
 
 #include <syslog.h>
-#include <sys/file.h>
 
 #include "ngxta.h"
 #include "ngx_http_accounting_hash.h"
