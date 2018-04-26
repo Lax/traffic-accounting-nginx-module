@@ -108,8 +108,6 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
 
     ngx_uint_t      status;
 
-
-
     ngx_time_t * time = ngx_timeofday();
 
     accounting_id = get_accounting_id(r);
@@ -128,7 +126,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
         if (ngx_strcmp(accounting_id->data, metrics->name.data) != 0)
             return NGX_ERROR;
 
-        metrics->nr_statuses = ngx_pcalloc(ngxta_current_metrics->pool, sizeof(ngx_uint_t) * ngxta_statuses_count(ngxta_http_statuses));
+        metrics->nr_statuses = ngx_pcalloc(ngxta_current_metrics->pool, sizeof(ngx_uint_t) * ngxta_http_statuses_len);
         if (metrics->nr_statuses == NULL)
             return NGX_ERROR;
     }
@@ -144,7 +142,8 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
     } else {
         status = NGX_HTTP_DEFAULT;
     }
-    metrics->nr_statuses[ngxta_statuses_bsearch(ngxta_http_statuses, &status)] += 1;
+
+    metrics->nr_statuses[ngxta_statuses_bsearch(ngxta_http_statuses, ngxta_http_statuses_len, status)] += 1;
 
     ngx_uint_t req_latency_ms = (time->sec * 1000 + time->msec) - (r->start_sec * 1000 + r->start_msec);
     metrics->total_latency_ms += req_latency_ms;
@@ -277,26 +276,88 @@ worker_process_write_out_stats(u_char *name, size_t len, void *val, void *para1,
     return NGX_OK;
 }
 
+static ngx_int_t
+worker_process_export_metrics(void *val, void *para1, void *para2)
+{
+    ngxta_metrics_rbnode_t  *metrics = (ngxta_metrics_rbnode_t *)val;
+    ngx_time_t *created_at = para1;
+    ngx_time_t *updated_at = para2;
+
+    ngx_str_t     accounting_msg;
+    u_char        msg_buf[NGX_MAX_ERROR_STR];
+    u_char       *p, *last;
+    ngx_uint_t    i;
+
+    if (metrics->nr_entries == 0) {
+        return NGX_OK;
+    }
+
+    if (metrics->name.len > 255) {
+        // Possible buffer overrun. Do not log it.
+        return NGX_OK;
+    }
+
+    // Output message buffer
+    p = msg_buf;
+    last = msg_buf + NGX_MAX_ERROR_STR;
+
+    p = ngx_slprintf(p, last,
+                "~pid:%i|from:%i|to:%i|accounting_id:%s|requests:%ui|bytes_in:%ui|bytes_out:%ui|latency_ms:%ui|upstream_latency_ms:%ui",
+                ngx_getpid(),
+                created_at->sec, updated_at->sec,
+                metrics->name.data,
+                metrics->nr_entries,
+                metrics->bytes_in,
+                metrics->bytes_out,
+                metrics->total_latency_ms,
+                metrics->total_upstream_latency_ms
+            );
+
+    for (i = 0; i < ngxta_http_statuses_len; i++) {
+        if (metrics->nr_statuses[i] == 0)
+            continue;
+
+        p = ngx_slprintf(p, last, "|%i:%i",
+                    ngxta_http_statuses[i],
+                    metrics->nr_statuses[i] );
+    }
+
+    if (p > last - NGX_LINEFEED_SIZE) {
+        p = last - NGX_LINEFEED_SIZE;
+    }
+
+    *p++ = '\0';
+
+    accounting_msg.len  = p - msg_buf;
+    accounting_msg.data = msg_buf;
+
+    if (ngxta_log.file->fd != NGX_INVALID_FILE) {
+        ngx_log_error(NGX_LOG_NOTICE, &ngxta_log, 0, "%V", &accounting_msg);
+    } else {
+        syslog(LOG_INFO, "%s", msg_buf);
+    }
+
+    return NGX_OK;
+}
 
 static void
 worker_process_alarm_handler(ngx_event_t *ev)
 {
-    ngx_time_t  *time;
-    ngx_msec_t   next;
-
-    time = ngx_timeofday();
+    ngxta_period_rotate(ngxta_current_metrics->pool);
+    ngxta_period_rbtree_iterate(ngxta_previous_metrics,
+                              worker_process_export_metrics,
+                              ngxta_previous_metrics->created_at,
+                              ngxta_previous_metrics->updated_at );
 
     ngx_http_accounting_old_time = ngx_http_accounting_new_time;
-    ngx_http_accounting_new_time = time->sec;
+    ngx_http_accounting_new_time = ((ngx_time_t *)ngx_timeofday())->sec;
 
     ngx_http_accounting_hash_iterate(&stats_hash, worker_process_write_out_stats, NULL, NULL);
 
     if (ngx_exiting || ev == NULL)
         return;
 
-    next = (ngx_msec_t)worker_process_timer_interval * 1000;
-
-    ngx_add_timer(ev, next);
+    ngx_add_timer(ev, (ngx_msec_t)worker_process_timer_interval * 1000);
 }
 
 

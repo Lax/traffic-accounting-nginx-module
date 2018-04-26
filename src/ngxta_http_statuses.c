@@ -52,20 +52,16 @@ ngx_uint_t ngxta_http_statuses[] = {
     NGX_HTTP_INSUFFICIENT_STORAGE
 };
 
+ngx_uint_t ngxta_http_statuses_len = sizeof(ngxta_http_statuses)/sizeof(ngxta_http_statuses[0]);
+
 static int statuses_cmp(const void * a, const void * b);
 
 ngx_uint_t
-ngxta_statuses_count(ngx_uint_t statuses[])
-{
-    return sizeof(statuses) / sizeof(statuses[0]);
-}
-
-ngx_uint_t
-ngxta_statuses_bsearch(ngx_uint_t statuses[], ngx_uint_t *status)
+ngxta_statuses_bsearch(ngx_uint_t statuses[], ngx_uint_t size, ngx_uint_t status)
 {
     ngx_uint_t *match;
 
-    match = bsearch(status, statuses, ngxta_statuses_count(statuses), sizeof(ngx_uint_t), statuses_cmp);
+    match = bsearch(&status, statuses, size, sizeof(ngx_uint_t), statuses_cmp);
     if ( match == NULL ) {
         return 0;
     }
