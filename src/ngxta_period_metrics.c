@@ -1,4 +1,11 @@
+
+/*
+ * Copyright (C) Liu Lantao
+ */
+
+
 #include "ngxta.h"
+
 
 ngxta_period_rbtree_t  *ngxta_current_metrics;
 ngxta_period_rbtree_t  *ngxta_previous_metrics;

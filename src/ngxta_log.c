@@ -6,6 +6,7 @@
 
 #include "ngxta.h"
 
+
 ngx_log_t ngxta_log;
 
 ngx_int_t

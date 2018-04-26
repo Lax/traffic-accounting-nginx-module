@@ -1,6 +1,13 @@
+
+/*
+ * Copyright (C) Liu Lantao
+ */
+
+
 #include "ngxta.h"
 
 #include <ngx_http.h>
+
 
 #define NGX_HTTP_MAX_STATUS NGX_HTTP_INSUFFICIENT_STORAGE
 
