@@ -133,7 +133,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
             return NGX_ERROR;
     }
 
-    metrics->nr_entities += 1;
+    metrics->nr_entries += 1;
     metrics->bytes_in += r->request_length;
     metrics->bytes_out += r->connection->sent;
 

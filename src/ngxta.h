@@ -16,10 +16,10 @@
 // Status Code. Default 0
 #define NGX_HTTP_STATUS_UNSET                   0
 
-extern ngx_uint_t http_statuses[];
+extern ngx_uint_t ngxta_http_statuses[];
 
-ngx_uint_t statuses_count(ngx_uint_t statuses[]);
-ngx_uint_t statuses_bsearch(ngx_uint_t statuses[], ngx_uint_t *status);
+ngx_uint_t ngxta_statuses_count(ngx_uint_t statuses[]);
+ngx_uint_t ngxta_statuses_bsearch(ngx_uint_t statuses[], ngx_uint_t *status);
 
 /*
  * Period / Metrics
@@ -30,7 +30,7 @@ typedef struct {
 
     ngx_str_t          name;
 
-    ngx_uint_t         nr_entities;
+    ngx_uint_t         nr_entries;
     ngx_uint_t         bytes_in;
     ngx_uint_t         bytes_out;
     ngx_uint_t         total_latency_ms;
