@@ -1,12 +1,13 @@
-#include <ngx_config.h>
-#include <ngx_core.h>
+
+/*
+ * Copyright (C) Liu Lantao
+ */
+
+
 #include <ngx_http.h>
 
 #include "ngxta.h"
-#include "ngx_http_accounting_hash.h"
-#include "ngx_http_accounting_common.h"
 #include "ngx_http_accounting_module.h"
-#include "ngx_http_accounting_status_code.h"
 #include "ngx_http_accounting_worker_process.h"
 
 
@@ -235,7 +236,7 @@ ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *
     }
 
     alcf->accounting_id = value[1];
-    alcf->index = DEFAULT_INDEX;
+    alcf->index = NGXTA_CONF_INDEX_UNSET;
 
     return NGX_CONF_OK;
 }

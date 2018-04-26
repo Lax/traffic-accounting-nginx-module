@@ -1,6 +1,6 @@
 # About
 
-Monitor the incoming and outgoing traffic metrics in realtime for NGINX stream subsystem.
+Monitor the incoming and outgoing traffic metrics in realtime for NGINX http subsystem.
 
 Realtime traffic and status code monitor solution for NGINX, need less memory and cpu than realtime log analyzing.
 Useful for http traffic accounting based on NGINX config logic ( by-location or by-server or by-user-defined-variable ).
