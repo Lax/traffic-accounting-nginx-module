@@ -14,7 +14,7 @@
  */
 
 // Status Code. Default 0
-#define NGXTA_STATUS_UNSET                   0
+#define NGX_HTTP_STATUS_UNSET                   0
 
 extern ngx_uint_t http_statuses[];
 

@@ -4,8 +4,8 @@
 
 #define NGX_HTTP_MAX_STATUS NGX_HTTP_INSUFFICIENT_STORAGE
 
-ngx_uint_t http_statuses[] = {
-    NGXTA_STATUS_UNSET,
+ngx_uint_t ngxta_http_statuses[] = {
+    NGX_HTTP_STATUS_UNSET,
     NGX_HTTP_CONTINUE,
     NGX_HTTP_SWITCHING_PROTOCOLS,
     NGX_HTTP_PROCESSING,
@@ -55,17 +55,17 @@ ngx_uint_t http_statuses[] = {
 static int statuses_cmp(const void * a, const void * b);
 
 ngx_uint_t
-statuses_count(ngx_uint_t statuses[])
+ngxta_statuses_count(ngx_uint_t statuses[])
 {
     return sizeof(statuses) / sizeof(statuses[0]);
 }
 
 ngx_uint_t
-statuses_bsearch(ngx_uint_t statuses[], ngx_uint_t *status)
+ngxta_statuses_bsearch(ngx_uint_t statuses[], ngx_uint_t *status)
 {
     ngx_uint_t *match;
 
-    match = bsearch(status, statuses, statuses_count(statuses), sizeof(ngx_uint_t), statuses_cmp);
+    match = bsearch(status, statuses, ngxta_statuses_count(statuses), sizeof(ngx_uint_t), statuses_cmp);
     if ( match == NULL ) {
         return 0;
     }

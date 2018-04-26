@@ -128,7 +128,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
         if (ngx_strcmp(accounting_id->data, metrics->name.data) != 0)
             return NGX_ERROR;
 
-        metrics->nr_statuses = ngx_pcalloc(ngxta_current_metrics->pool, sizeof(ngx_uint_t) * statuses_count(http_statuses));
+        metrics->nr_statuses = ngx_pcalloc(ngxta_current_metrics->pool, sizeof(ngx_uint_t) * ngxta_statuses_count(ngxta_http_statuses));
         if (metrics->nr_statuses == NULL)
             return NGX_ERROR;
     }
@@ -144,7 +144,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
     } else {
         status = NGX_HTTP_DEFAULT;
     }
-    metrics->nr_statuses[statuses_bsearch(http_statuses, &status)] += 1;
+    metrics->nr_statuses[ngxta_statuses_bsearch(ngxta_http_statuses, &status)] += 1;
 
     ngx_uint_t req_latency_ms = (time->sec * 1000 + time->msec) - (r->start_sec * 1000 + r->start_msec);
     metrics->total_latency_ms += req_latency_ms;
