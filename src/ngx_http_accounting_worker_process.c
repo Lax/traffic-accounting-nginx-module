@@ -103,7 +103,8 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
         if (ngx_strcmp(accounting_id->data, metrics->name.data) != 0)
             return NGX_ERROR;
 
-        metrics->nr_statuses = ngx_pcalloc(ngxta_current_metrics->pool, sizeof(ngx_uint_t) * ngxta_http_statuses_len);
+        metrics->nr_statuses = ngx_pcalloc(ngxta_current_metrics->pool,
+                                   sizeof(ngx_uint_t) * ngxta_http_statuses_len);
         if (metrics->nr_statuses == NULL)
             return NGX_ERROR;
     }
@@ -122,25 +123,27 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
 
     metrics->nr_statuses[ngxta_statuses_bsearch(ngxta_http_statuses, ngxta_http_statuses_len, status)] += 1;
 
-    ngx_uint_t req_latency_ms = (time->sec * 1000 + time->msec) - (r->start_sec * 1000 + r->start_msec);
-    metrics->total_latency_ms += req_latency_ms;
+    metrics->total_latency_ms +=
+        (time->sec * 1000 + time->msec) - (r->start_sec * 1000 + r->start_msec);
 
-    // following magic airlifted from ngx_http_upstream.c:4416-4423
-    ngx_http_upstream_state_t       *state;
-    ngx_uint_t upstream_req_latency_ms = 0;
     if (r->upstream_states != NULL && r->upstream_states->nelts != 0) {
-        state = r->upstream_states->elts;
+        ngx_uint_t                   upstream_req_latency_ms = 0;
+        ngx_uint_t                   i;
+        ngx_http_upstream_state_t   *state = r->upstream_states->elts;
 
-        if (state[0].status) {
-            // not even checking the status here...
+        for (i = 0; i < r->upstream_states->nelts; i++) {
+            if (state[i].status) {
 #if (nginx_version < 1009000)
-            upstream_req_latency_ms = (state[0].response_sec * 1000 + state[0].response_msec);
+                upstream_req_latency_ms += (state[i].response_sec * 1000 + state[i].response_msec);
 #else
-            upstream_req_latency_ms = state[0].response_time;
+                upstream_req_latency_ms += state[i].response_time;
 #endif
+            }
+
         }
+
+        metrics->total_upstream_latency_ms += upstream_req_latency_ms;
     }
-    metrics->total_upstream_latency_ms += upstream_req_latency_ms;
 
     ngxta_current_metrics->updated_at = ngx_timeofday();
 
