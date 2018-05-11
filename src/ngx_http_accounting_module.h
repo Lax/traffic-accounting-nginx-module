@@ -19,7 +19,7 @@ typedef struct {
 
 typedef struct {
     ngx_flag_t      enable;
-    ngx_str_t       log;
+    ngx_log_t      *log;
     time_t          interval;
     ngx_flag_t      perturb;
 } ngx_http_accounting_main_conf_t;

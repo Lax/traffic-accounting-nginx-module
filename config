@@ -9,7 +9,6 @@ HTTP_ACCOUNTING_DEPS=" \
 HTTP_ACCOUNTING_SRCS=" \
     $ngx_addon_dir/src/ngxta_http_statuses.c \
     $ngx_addon_dir/src/ngxta_period_metrics.c \
-    $ngx_addon_dir/src/ngxta_log.c \
     $ngx_addon_dir/src/ngx_http_accounting_module.c \
     $ngx_addon_dir/src/ngx_http_accounting_worker_process.c \
     "
