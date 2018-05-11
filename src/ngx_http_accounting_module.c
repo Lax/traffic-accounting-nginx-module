@@ -23,6 +23,7 @@ static void *ngx_http_accounting_create_loc_conf(ngx_conf_t *cf);
 static char *ngx_http_accounting_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child);
 
 static char *ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+static char * ngx_http_accounting_set_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 static ngx_command_t  ngx_http_accounting_commands[] = {
     { ngx_string("http_accounting"),
@@ -55,10 +56,10 @@ static ngx_command_t  ngx_http_accounting_commands[] = {
       NULL},
 
     { ngx_string("http_accounting_log"),
-      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
-      ngx_conf_set_str_slot,
+      NGX_HTTP_MAIN_CONF|NGX_CONF_1MORE,
+      ngx_http_accounting_set_log,
       NGX_HTTP_MAIN_CONF_OFFSET,
-      offsetof(ngx_http_accounting_main_conf_t, log),
+      0,
       NULL},
 
     ngx_null_command
@@ -104,24 +105,6 @@ ngx_http_accounting_init(ngx_conf_t *cf)
     if (!amcf->enable) {
         return NGX_OK;
     }
-
-    if (amcf->log.len > 0) {
-        if (NGX_OK != ngxta_log_open(cf->cycle, &ngxta_log, &amcf->log)) {
-            // ngxta_log = NULL;
-            return NGX_ERROR;
-        }
-
-        if (ngxta_log.file->name.len > 0
-            && ngxta_log.file->fd != NGX_INVALID_FILE ) {
-            ngx_log_error(NGX_LOG_INFO, ngx_cycle->log, 0,
-                        "pid:%i|accounting log to file: %V",
-                        ngx_getpid(),
-                        ngxta_log.file->name );
-        }
-    }
-    // else {
-    //     // ngxta_log = ngx_cycle->log;
-    // }
 
     cmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_core_module);
 
@@ -237,6 +220,28 @@ ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *
 
     alcf->accounting_id = value[1];
     alcf->index = NGXTA_CONF_INDEX_UNSET;
+
+    return NGX_CONF_OK;
+}
+
+static char *
+ngx_http_accounting_set_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_http_accounting_main_conf_t   *amcf = conf;
+    char                *rc;
+    ngx_log_t           *log;
+
+    rc = ngx_log_set_log(cf, &amcf->log);
+    if (rc != NGX_CONF_OK) { return rc; }
+
+    log = amcf->log;
+    while (log) {
+        if (log->log_level < NGXTA_LOG_LEVEL) {
+            log->log_level = NGXTA_LOG_LEVEL;
+        }
+
+        log = log->next;
+    }
 
     return NGX_CONF_OK;
 }

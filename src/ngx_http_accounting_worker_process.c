@@ -33,8 +33,8 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
 
     ngxta_period_init(cycle->pool);
 
-    if (ngxta_log.file->fd != NGX_INVALID_FILE) {
-        ngx_log_error(NGX_LOG_NOTICE, &ngxta_log, 0, "pid:%i|worker process start accounting", ngx_getpid());
+    if (amcf->log != NULL) {
+        ngx_log_error(NGX_LOG_NOTICE, amcf->log, 0, "pid:%i|worker process start accounting", ngx_getpid());
     } else {
         openlog((char *)ngx_http_accounting_title, LOG_NDELAY, LOG_SYSLOG);
         syslog(LOG_INFO, "pid:%i|worker process start accounting", ngx_getpid());
@@ -71,8 +71,8 @@ void ngx_http_accounting_worker_process_exit(ngx_cycle_t *cycle)
 
     worker_process_alarm_handler(NULL);
 
-    if (ngxta_log.file->fd != NGX_INVALID_FILE) {
-        ngx_log_error(NGX_LOG_NOTICE, &ngxta_log, 0, "pid:%i|worker process stop accounting", ngx_getpid());
+    if (amcf->log != NULL) {
+        ngx_log_error(NGX_LOG_NOTICE, amcf->log, 0, "pid:%i|worker process stop accounting", ngx_getpid());
     } else {
         syslog(LOG_INFO, "pid:%i|worker process stop accounting", ngx_getpid());
     }
@@ -158,6 +158,8 @@ worker_process_export_metrics(void *val, void *para1, void *para2)
     ngx_time_t *created_at = para1;
     ngx_time_t *updated_at = para2;
 
+    ngx_http_accounting_main_conf_t *amcf;
+
     ngx_str_t     accounting_msg;
     u_char        msg_buf[NGX_MAX_ERROR_STR];
     u_char       *p, *last;
@@ -206,8 +208,10 @@ worker_process_export_metrics(void *val, void *para1, void *para2)
     accounting_msg.len  = p - msg_buf;
     accounting_msg.data = msg_buf;
 
-    if (ngxta_log.file->fd != NGX_INVALID_FILE) {
-        ngx_log_error(NGX_LOG_NOTICE, &ngxta_log, 0, "%V", &accounting_msg);
+    amcf = ngx_http_cycle_get_module_main_conf(ngx_cycle, ngx_http_accounting_module);
+
+    if (amcf->log != NULL) {
+        ngx_log_error(NGX_LOG_NOTICE, amcf->log, 0, "%V", &accounting_msg);
     } else {
         syslog(LOG_INFO, "%s", msg_buf);
     }

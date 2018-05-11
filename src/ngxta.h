@@ -71,8 +71,7 @@ ngx_int_t ngxta_period_rotate(ngx_pool_t *pool);
  * Log
  */
 
-ngx_int_t ngxta_log_open(ngx_cycle_t *cycle, ngx_log_t *log, ngx_str_t *log_path);
+#define NGXTA_LOG_LEVEL    NGX_LOG_NOTICE
 
-extern ngx_log_t ngxta_log;
 
 #endif /* _NGX_TRAFFIC_ACCOUNTING_H_INCLUDED_ */
