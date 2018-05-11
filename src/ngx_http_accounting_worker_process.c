@@ -100,7 +100,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
         if (metrics == NULL)
             return NGX_ERROR;
 
-        if (ngx_strcmp(accounting_id->data, metrics->name.data) != 0)
+        if (ngx_rstrncmp(accounting_id->data, metrics->name.data, accounting_id->len) != 0)
             return NGX_ERROR;
 
         metrics->nr_statuses = ngx_pcalloc(ngxta_current_metrics->pool,

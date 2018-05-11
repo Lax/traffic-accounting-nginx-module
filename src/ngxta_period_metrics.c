@@ -93,7 +93,7 @@ ngxta_period_rbtree_lookup_metrics(ngxta_period_rbtree_t *period,
         }
 
         n = (ngxta_metrics_rbnode_t *) node;
-        rc = ngx_strcmp(name->data, n->name.data);
+        rc = ngx_rstrncmp(name->data, n->name.data, name->len);
 
         if (rc < 0) {
             node = node->left;
