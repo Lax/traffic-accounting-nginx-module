@@ -1,6 +1,5 @@
 FROM centos as builder
 
-ADD http://mirrors.aliyun.com/repo/Centos-7.repo /etc/yum.repos.d/CentOS-Base.repo
 RUN yum install gcc make pcre-devel zlib-devel openssl-devel -y \
     && yum clean all
 
@@ -21,8 +20,8 @@ WORKDIR ${NGX_SRC_DIR}
 ADD . nginx-http-accounting-module
 RUN ./configure --prefix=${PREFIX} \
     --with-stream \
-    --add-module=nginx-http-accounting-module \
-    --add-module=echo-nginx-module-master \
+    --add-dynamic-module=nginx-http-accounting-module \
+    --add-dynamic-module=echo-nginx-module-master \
     --http-log-path=/dev/stdout \
     --error-log-path=/dev/stderr \
     && make -s && make -s install
@@ -42,8 +41,9 @@ RUN ln -sf /dev/stdout ${PREFIX}/logs/access.log \
     && ln -sf /dev/stderr ${PREFIX}/logs/error.log \
     && ln -sf ../usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
-ADD misc/nginx.conf ${PREFIX}/conf/nginx.conf
+ADD samples/nginx.conf ${PREFIX}/conf/nginx.conf
 
-EXPOSE 80
+EXPOSE 8080
+EXPOSE 8888
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["./sbin/nginx", "-g", "daemon off;"]
