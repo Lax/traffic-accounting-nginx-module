@@ -1,0 +1,79 @@
+version: '3.6'
+
+services:
+  elasticsearch:
+    labels:
+      com.example.service: "es"
+      com.example.description: "For searching and indexing data"
+    image: elasticsearch
+    networks:
+      - elk
+    volumes:
+      - type: volume
+        source: esdata
+        target: /usr/share/elasticsearch/data/
+    ports:
+      - "9200:9200"
+
+  logstash:
+    labels:
+      com.example.service: "logstash"
+      com.example.description: "For logging data"
+    image: logstash
+    networks:
+      - elk
+    volumes:
+      - ./samples/elkg:/etc/logstash
+    command: logstash -f /etc/logstash/logstash.conf
+    depends_on:
+      - elasticsearch
+
+  kibana:
+    labels:
+      com.example.service: "kibana"
+      com.example.description: "Data visualisation and for log aggregation"
+    image: kibana
+    networks:
+      - elk
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
+
+  grafana:
+    labels:
+      com.example.service: "grafana"
+      com.example.description: "Data visualisation"
+    image: grafana/grafana
+    networks:
+      - elk
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - elasticsearch
+
+  nginx:
+    container_name: nginx_accounting
+    build:
+      context: .
+      dockerfile: samples/Dockerfile
+    networks:
+      - nginx
+      - elk
+    ports:
+      - 8080:8080
+      - 8888:8888
+    depends_on:
+      - logstash
+
+
+networks:
+  nginx:
+  elk:
+
+volumes:
+  esdata:

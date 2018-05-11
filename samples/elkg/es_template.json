@@ -1,0 +1,77 @@
+{
+  "version" : 1,
+  "template" : "logstash-*",
+  "settings" : {
+    "index" : {
+      "refresh_interval" : "5s"
+    }
+  },
+  "mappings" : {
+    "logs" : {
+      "_all" : {
+        "enabled" : false,
+        "norms" : false
+      },
+      "dynamic_templates" : [
+        {
+          "accounting_status_fields" : {
+            "path_match" : "@nr_status.*",
+            "mapping" : {
+              "type" : "integer"
+            }
+          }
+        },
+        {
+          "accounting_aggregate_status_fields" : {
+            "path_match" : "@agg_status.*",
+            "mapping" : {
+              "type" : "integer"
+            }
+          }
+        }
+      ],
+      "properties" : {
+        "@timestamp" : {
+          "type" : "date"
+        },
+        "@from" : {
+          "type" : "date"
+        },
+        "@to" : {
+          "type" : "date"
+        },
+        "accounting_id" : {
+          "type" : "keyword"
+        },
+        "entry_type" : {
+          "type" : "keyword"
+        },
+        "nr_entries": {
+          "type" : "integer"
+        },
+        "nr_open_entries": {
+          "type" : "integer"
+        },
+        "nr_close_entries": {
+          "type" : "integer"
+        },
+        "in_bytes": {
+          "type" : "integer"
+        },
+        "out_bytes": {
+          "type" : "integer"
+        },
+        "latency_ms": {
+          "type" : "integer"
+        },
+        "upstream_latency_ms": {
+          "type" : "integer"
+        },
+        "message" : {
+          "type" : "text"
+        }
+      }
+    }
+  },
+  "aliases" : {}
+}
