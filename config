@@ -14,7 +14,6 @@ HTTP_ACCOUNTING_SRCS=" \
     $ngx_addon_dir/src/ngx_traffic_accounting_statuses.c \
     $ngx_addon_dir/src/ngx_http_accounting_module.c \
     $ngx_addon_dir/src/ngx_http_accounting_statuses.c \
-    $ngx_addon_dir/src/ngx_http_accounting_worker_process.c \
     "
 
 if test -n "$ngx_module_link"; then
