@@ -104,7 +104,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
             return NGX_ERROR;
 
         metrics->nr_statuses = ngx_pcalloc(ngxta_current_metrics->pool,
-                                   sizeof(ngx_uint_t) * ngxta_http_statuses_len);
+                                   sizeof(ngx_uint_t) * ngx_http_statuses_len);
         if (metrics->nr_statuses == NULL)
             return NGX_ERROR;
     }
@@ -121,7 +121,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
         status = NGX_HTTP_STATUS_UNSET;
     }
 
-    metrics->nr_statuses[ngxta_statuses_bsearch(ngxta_http_statuses, ngxta_http_statuses_len, status)] += 1;
+    metrics->nr_statuses[ngx_status_bsearch(status, ngx_http_statuses, ngx_http_statuses_len)] += 1;
 
     metrics->total_latency_ms +=
         (time->sec * 1000 + time->msec) - (r->start_sec * 1000 + r->start_msec);
@@ -190,12 +190,12 @@ worker_process_export_metrics(void *val, void *para1, void *para2)
                 metrics->total_upstream_latency_ms
             );
 
-    for (i = 0; i < ngxta_http_statuses_len; i++) {
+    for (i = 0; i < ngx_http_statuses_len; i++) {
         if (metrics->nr_statuses[i] == 0)
             continue;
 
         p = ngx_slprintf(p, last, "|%i:%i",
-                    ngxta_http_statuses[i],
+                    ngx_http_statuses[i],
                     metrics->nr_statuses[i] );
     }
 
@@ -251,7 +251,7 @@ get_accounting_id(ngx_http_request_t *r)
         return NULL;
 
     if (alcf->index != NGX_CONF_UNSET &&
-        alcf->index != NGXTA_CONF_INDEX_UNSET) {
+        alcf->index != NGX_CONF_INDEX_UNSET) {
         vv = ngx_http_get_indexed_variable(r, alcf->index);
 
         if ((vv != NULL) && (vv->not_found)) {

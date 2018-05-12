@@ -4,14 +4,10 @@
  */
 
 
-#include "ngx_traffic_accounting.h"
-
-#include <ngx_http.h>
+#include "ngx_http_accounting_module.h"
 
 
-#define NGX_HTTP_MAX_STATUS NGX_HTTP_INSUFFICIENT_STORAGE
-
-ngx_uint_t ngxta_http_statuses[] = {
+ngx_uint_t ngx_http_statuses[] = {
     NGX_HTTP_STATUS_UNSET,
     NGX_HTTP_CONTINUE,
     NGX_HTTP_SWITCHING_PROTOCOLS,
@@ -59,24 +55,4 @@ ngx_uint_t ngxta_http_statuses[] = {
     NGX_HTTP_INSUFFICIENT_STORAGE
 };
 
-ngx_uint_t ngxta_http_statuses_len = sizeof(ngxta_http_statuses)/sizeof(ngxta_http_statuses[0]);
-
-static int statuses_cmp(const void * a, const void * b);
-
-ngx_uint_t
-ngxta_statuses_bsearch(ngx_uint_t statuses[], ngx_uint_t size, ngx_uint_t status)
-{
-    ngx_uint_t *match;
-
-    match = bsearch(&status, statuses, size, sizeof(ngx_uint_t), statuses_cmp);
-    if ( match == NULL ) {
-        return 0;
-    }
-
-    return ((ngx_uint_t *)match - statuses);
-}
-
-static int
-statuses_cmp(const void * a, const void * b) {
-   return ( *(int*)a - *(int*)b );
-}
+ngx_uint_t ngx_http_statuses_len = sizeof(ngx_http_statuses)/sizeof(ngx_http_statuses[0]);

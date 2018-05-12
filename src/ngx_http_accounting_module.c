@@ -219,7 +219,7 @@ ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *
     }
 
     alcf->accounting_id = value[1];
-    alcf->index = NGXTA_CONF_INDEX_UNSET;
+    alcf->index = NGX_CONF_INDEX_UNSET;
 
     return NGX_CONF_OK;
 }

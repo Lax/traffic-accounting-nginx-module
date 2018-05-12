@@ -14,13 +14,7 @@
  * Status Code
  */
 
-// Status Code. Default 0
-#define NGX_HTTP_STATUS_UNSET                   0
-
-extern ngx_uint_t ngxta_http_statuses[];
-extern ngx_uint_t ngxta_http_statuses_len;
-
-ngx_uint_t ngxta_statuses_bsearch(ngx_uint_t statuses[], ngx_uint_t size, ngx_uint_t status);
+ngx_uint_t ngx_status_bsearch(ngx_uint_t status, ngx_uint_t statuses[], ngx_uint_t size);
 
 /*
  * Period / Metrics
