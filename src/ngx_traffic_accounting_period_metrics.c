@@ -123,6 +123,20 @@ ngx_traffic_accounting_period_lookup_metrics(ngx_traffic_accounting_period_t *pe
     return NULL;
 }
 
+ngx_traffic_accounting_metrics_t *
+ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *period, ngx_str_t *name)
+{
+    ngx_traffic_accounting_metrics_t   *n;
+
+    n = ngx_traffic_accounting_period_lookup_metrics(period, name);
+    if (n != NULL)
+        return n;
+
+    ngx_traffic_accounting_period_insert(period, name);
+
+    return ngx_traffic_accounting_period_lookup_metrics(period, name);
+}
+
 ngx_int_t
 ngx_traffic_accounting_period_rbtree_iterate(ngx_traffic_accounting_period_t *period,
                             ngx_traffic_accounting_period_iterate_func func,

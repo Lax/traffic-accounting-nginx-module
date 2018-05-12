@@ -52,6 +52,7 @@ void ngx_traffic_accounting_period_insert_metrics(ngx_traffic_accounting_period_
 void ngx_traffic_accounting_period_delete(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
 void ngx_traffic_accounting_period_delete_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics);
 ngx_traffic_accounting_metrics_t * ngx_traffic_accounting_period_lookup_metrics(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
+ngx_traffic_accounting_metrics_t * ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
 
 typedef ngx_int_t (*ngx_traffic_accounting_period_iterate_func)(void *val, void *para1, void *para2);
 

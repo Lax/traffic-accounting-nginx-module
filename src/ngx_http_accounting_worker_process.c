@@ -95,16 +95,13 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
     accounting_id = get_accounting_id(r);
     if (accounting_id == NULL) { return NGX_ERROR; }
 
-    metrics = ngx_traffic_accounting_period_lookup_metrics(ngx_http_accounting_current_period, accounting_id);
-    if (metrics == NULL) {
-        ngx_traffic_accounting_period_insert(ngx_http_accounting_current_period, accounting_id);
+    metrics = ngx_traffic_accounting_period_fetch_metrics(ngx_http_accounting_current_period, accounting_id);
+    if (metrics == NULL) { return NGX_ERROR; }
 
-        metrics = ngx_traffic_accounting_period_lookup_metrics(ngx_http_accounting_current_period, accounting_id);
-        if (metrics == NULL) { return NGX_ERROR; }
+    if (ngx_traffic_accounting_metrics_init(metrics, ngx_http_accounting_current_period->pool, ngx_http_statuses_len) == NGX_ERROR)
+        return NGX_ERROR;
 
-        if (ngx_traffic_accounting_metrics_init(metrics, ngx_http_accounting_current_period->pool, ngx_http_statuses_len) == NGX_ERROR)
-            return NGX_ERROR;
-    }
+    ngx_http_accounting_current_period->updated_at = ngx_timeofday();
 
     metrics->nr_entries += 1;
     metrics->bytes_in += r->request_length;
@@ -141,8 +138,6 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
 
         metrics->total_upstream_latency_ms += upstream_req_latency_ms;
     }
-
-    ngx_http_accounting_current_period->updated_at = ngx_timeofday();
 
     return NGX_DECLINED;
 }
