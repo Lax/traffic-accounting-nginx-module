@@ -17,6 +17,8 @@
 ngx_traffic_accounting_period_t   *ngx_http_accounting_current_period;
 ngx_traffic_accounting_period_t   *ngx_http_accounting_previous_period;
 
+static char entry_n[] = "requests";
+
 static u_char *ngx_http_accounting_title = (u_char *)"NgxAccounting";
 
 static void worker_process_alarm_handler(ngx_event_t *ev);
@@ -37,7 +39,7 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
     ngx_http_accounting_period_create(cycle->pool);
 
     if (amcf->log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, amcf->log, 0, "pid:%i|worker process start accounting", ngx_getpid());
+        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0, "pid:%i|worker process start accounting", ngx_getpid());
     } else {
         openlog((char *)ngx_http_accounting_title, LOG_NDELAY, LOG_SYSLOG);
         syslog(LOG_INFO, "pid:%i|worker process start accounting", ngx_getpid());
@@ -75,7 +77,7 @@ void ngx_http_accounting_worker_process_exit(ngx_cycle_t *cycle)
     worker_process_alarm_handler(NULL);
 
     if (amcf->log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, amcf->log, 0, "pid:%i|worker process stop accounting", ngx_getpid());
+        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0, "pid:%i|worker process stop accounting", ngx_getpid());
     } else {
         syslog(LOG_INFO, "pid:%i|worker process stop accounting", ngx_getpid());
     }
@@ -84,31 +86,23 @@ void ngx_http_accounting_worker_process_exit(ngx_cycle_t *cycle)
 ngx_int_t
 ngx_http_accounting_handler(ngx_http_request_t *r)
 {
-    ngx_str_t      *accounting_id;
+    ngx_str_t                          *accounting_id;
+    ngx_traffic_accounting_metrics_t   *metrics;
 
     ngx_uint_t      status;
-
     ngx_time_t * time = ngx_timeofday();
 
     accounting_id = get_accounting_id(r);
-    if (accounting_id == NULL)
-        return NGX_ERROR;
+    if (accounting_id == NULL) { return NGX_ERROR; }
 
-    ngx_traffic_accounting_metrics_t   *metrics = ngx_traffic_accounting_period_lookup_metrics(ngx_http_accounting_current_period, accounting_id);
-
+    metrics = ngx_traffic_accounting_period_lookup_metrics(ngx_http_accounting_current_period, accounting_id);
     if (metrics == NULL) {
         ngx_traffic_accounting_period_insert(ngx_http_accounting_current_period, accounting_id);
 
         metrics = ngx_traffic_accounting_period_lookup_metrics(ngx_http_accounting_current_period, accounting_id);
-        if (metrics == NULL)
-            return NGX_ERROR;
+        if (metrics == NULL) { return NGX_ERROR; }
 
-        if (ngx_rstrncmp(accounting_id->data, metrics->name.data, accounting_id->len) != 0)
-            return NGX_ERROR;
-
-        metrics->nr_statuses = ngx_pcalloc(ngx_http_accounting_current_period->pool,
-                                   sizeof(ngx_uint_t) * ngx_http_statuses_len);
-        if (metrics->nr_statuses == NULL)
+        if (ngx_traffic_accounting_metrics_init(metrics, ngx_http_accounting_current_period->pool, ngx_http_statuses_len) == NGX_ERROR)
             return NGX_ERROR;
     }
 
@@ -124,7 +118,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
         status = NGX_HTTP_STATUS_UNSET;
     }
 
-    metrics->nr_statuses[ngx_status_bsearch(status, ngx_http_statuses, ngx_http_statuses_len)] += 1;
+    metrics->nr_status[ngx_status_bsearch(status, ngx_http_statuses, ngx_http_statuses_len)] += 1;
 
     metrics->total_latency_ms +=
         (time->sec * 1000 + time->msec) - (r->start_sec * 1000 + r->start_msec);
@@ -157,69 +151,18 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
 static ngx_int_t
 worker_process_export_metrics(void *val, void *para1, void *para2)
 {
-    ngx_traffic_accounting_metrics_t   *metrics = (ngx_traffic_accounting_metrics_t *)val;
-    ngx_time_t *created_at = para1;
-    ngx_time_t *updated_at = para2;
-
-    ngx_http_accounting_main_conf_t *amcf;
-
-    ngx_str_t     accounting_msg;
-    u_char        msg_buf[NGX_MAX_ERROR_STR];
-    u_char       *p, *last;
-    ngx_uint_t    i;
-
-    if (metrics->nr_entries == 0) {
-        return NGX_OK;
-    }
-
-    if (metrics->name.len > 255) {
-        // Possible buffer overrun. Do not log it.
-        return NGX_OK;
-    }
-
-    // Output message buffer
-    p = msg_buf;
-    last = msg_buf + NGX_MAX_ERROR_STR;
-
-    p = ngx_slprintf(p, last,
-                "pid:%i|from:%i|to:%i|accounting_id:%s|requests:%ui|bytes_in:%ui|bytes_out:%ui|latency_ms:%ui|upstream_latency_ms:%ui",
-                ngx_getpid(),
-                created_at->sec, updated_at->sec,
-                metrics->name.data,
-                metrics->nr_entries,
-                metrics->bytes_in,
-                metrics->bytes_out,
-                metrics->total_latency_ms,
-                metrics->total_upstream_latency_ms
-            );
-
-    for (i = 0; i < ngx_http_statuses_len; i++) {
-        if (metrics->nr_statuses[i] == 0)
-            continue;
-
-        p = ngx_slprintf(p, last, "|%i:%i",
-                    ngx_http_statuses[i],
-                    metrics->nr_statuses[i] );
-    }
-
-    if (p > last - NGX_LINEFEED_SIZE) {
-        p = last - NGX_LINEFEED_SIZE;
-    }
-
-    *p++ = '\0';
-
-    accounting_msg.len  = p - msg_buf;
-    accounting_msg.data = msg_buf;
+    ngx_http_accounting_main_conf_t   *amcf;
+    ngx_int_t                          rc;
 
     amcf = ngx_http_cycle_get_module_main_conf(ngx_cycle, ngx_http_accounting_module);
 
-    if (amcf->log != NULL) {
-        ngx_log_error(NGX_LOG_NOTICE, amcf->log, 0, "%V", &accounting_msg);
-    } else {
-        syslog(LOG_INFO, "%s", msg_buf);
-    }
+    rc = ngx_traffic_accounting_log_metrics(val, para1, para2,
+                                            amcf->log, entry_n,
+                                            ngx_http_statuses,
+                                            ngx_http_statuses_len );
+    if (rc == NGX_OK) { return NGX_DONE; }  /* NGX_DONE -> destroy node */
 
-    return NGX_OK;
+    return rc;
 }
 
 static void

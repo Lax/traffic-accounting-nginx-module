@@ -10,6 +10,26 @@
 static void ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp, ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
 
 ngx_int_t
+ngx_traffic_accounting_metrics_init(ngx_traffic_accounting_metrics_t *metrics, ngx_pool_t *pool, size_t len)
+{
+    if (metrics->nr_status == NULL) {
+        metrics->nr_status = ngx_pcalloc(pool, sizeof(ngx_uint_t) * len);
+
+        if (metrics->nr_status == NULL)
+            return NGX_ERROR;
+    }
+
+    if (metrics->nr_upstream_status == NULL) {
+        metrics->nr_upstream_status = ngx_pcalloc(pool, sizeof(ngx_uint_t) * len);
+
+        if (metrics->nr_upstream_status == NULL)
+            return NGX_ERROR;
+    }
+
+    return NGX_OK;
+}
+
+ngx_int_t
 ngx_traffic_accounting_period_init(ngx_traffic_accounting_period_t *period)
 {
     ngx_rbtree_init(&period->rbtree, &period->sentinel,
@@ -108,26 +128,33 @@ ngx_traffic_accounting_period_rbtree_iterate(ngx_traffic_accounting_period_t *pe
                             ngx_traffic_accounting_period_iterate_func func,
                             void *para1, void *para2 )
 {
+    ngx_rbtree_t                       *rbtree;
+    ngx_rbtree_node_t                  *node, *sentinel;
     ngx_traffic_accounting_metrics_t   *n;
-    ngx_rbtree_node_t  *node, *sentinel;
-    ngx_int_t           ret_code;
+    ngx_int_t                           rc;
 
-    ngx_rbtree_t *rbtree = &period->rbtree;
+    rbtree = &period->rbtree;
     node = rbtree->root;
     sentinel = rbtree->sentinel;
 
     while (node != sentinel) {
         n = (ngx_traffic_accounting_metrics_t *) node;
-        ret_code = func(n, para1, para2);
 
-        if (ret_code != NGX_OK)
-            return ret_code;
+        rc = func(n, para1, para2);
 
-        // squeeze!
-        ngx_rbtree_delete(rbtree, node);
-        ngx_pfree(period->pool, n->nr_statuses);
-        ngx_pfree(period->pool, n);
+        if (rc == NGX_DONE) {
+            /* NGX_DONE -> destroy node */
+            ngx_rbtree_delete(rbtree, node);
+            ngx_pfree(period->pool, n->nr_status);
+            ngx_pfree(period->pool, n->nr_upstream_status);
+            ngx_pfree(period->pool, n);
 
+            goto done;
+        }
+
+        if (rc != NGX_OK) { return rc; }
+
+done:
         node = rbtree->root;
     }
 

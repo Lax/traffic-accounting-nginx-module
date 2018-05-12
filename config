@@ -8,9 +8,10 @@ HTTP_ACCOUNTING_DEPS=" \
     "
 
 HTTP_ACCOUNTING_SRCS=" \
-    $ngx_addon_dir/src/ngx_traffic_accounting_statuses.c \
-    $ngx_addon_dir/src/ngx_traffic_accounting_period_metrics.c \
+    $ngx_addon_dir/src/ngx_traffic_accounting_log.c \
     $ngx_addon_dir/src/ngx_traffic_accounting_module_conf.c \
+    $ngx_addon_dir/src/ngx_traffic_accounting_period_metrics.c \
+    $ngx_addon_dir/src/ngx_traffic_accounting_statuses.c \
     $ngx_addon_dir/src/ngx_http_accounting_module.c \
     $ngx_addon_dir/src/ngx_http_accounting_statuses.c \
     $ngx_addon_dir/src/ngx_http_accounting_worker_process.c \
