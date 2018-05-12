@@ -10,7 +10,7 @@
 
 #include <ngx_core.h>
 #include <ngx_http.h>
-#include "ngx_traffic_accounting_module.h"
+#include "../ngx_traffic_accounting_module.h"
 
 
 typedef ngx_traffic_accounting_main_conf_t    ngx_http_accounting_main_conf_t;

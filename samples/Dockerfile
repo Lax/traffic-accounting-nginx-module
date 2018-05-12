@@ -17,10 +17,10 @@ RUN tar zxf `curl -SLOs -w'%{filename_effective}' ${NGX_URL}` -C ${WORKDIR} \
     && tar zxf `curl -SLJOs -w'%{filename_effective}' ${NGX_HTTP_ECHO_URL}` -C ${NGX_SRC_DIR}
 
 WORKDIR ${NGX_SRC_DIR}
-ADD . nginx-http-accounting-module
+ADD . traffic-accounting-nginx-module
 RUN ./configure --prefix=${PREFIX} \
     --with-stream \
-    --add-dynamic-module=nginx-http-accounting-module \
+    --add-dynamic-module=traffic-accounting-nginx-module \
     --add-dynamic-module=echo-nginx-module-master \
     --http-log-path=/dev/stdout \
     --error-log-path=/dev/stderr \

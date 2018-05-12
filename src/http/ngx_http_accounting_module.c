@@ -6,7 +6,6 @@
 
 #include <ngx_http.h>
 #include <syslog.h>
-#include "ngx_traffic_accounting.h"
 #include "ngx_http_accounting_module.h"
 
 
@@ -98,9 +97,9 @@ ngx_module_t ngx_http_accounting_module = {
 static ngx_int_t
 ngx_http_accounting_init(ngx_conf_t *cf)
 {
-    ngx_http_handler_pt              *h;
-    ngx_http_core_main_conf_t        *cmcf;
-    ngx_http_accounting_main_conf_t  *amcf;
+    ngx_http_handler_pt               *h;
+    ngx_http_core_main_conf_t         *cmcf;
+    ngx_http_accounting_main_conf_t   *amcf;
 
     amcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_accounting_module);
     if (!amcf->enable) {
@@ -133,10 +132,10 @@ ngx_http_accounting_process_init(ngx_cycle_t *cycle)
     }
 
     if (amcf->log != NULL) {
-        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0, "pid:%i|worker process start accounting", ngx_getpid());
+        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0, "pid:%i|start http traffic accounting", ngx_getpid());
     } else {
         openlog((char *)ngx_http_accounting_title, LOG_NDELAY, LOG_SYSLOG);
-        syslog(LOG_INFO, "pid:%i|worker process start accounting", ngx_getpid());
+        syslog(LOG_INFO, "pid:%i|start http traffic accounting", ngx_getpid());
     }
 
     if (amcf->current == NULL) {
@@ -177,9 +176,9 @@ ngx_http_accounting_process_exit(ngx_cycle_t *cycle)
     worker_process_alarm_handler(NULL);
 
     if (amcf->log != NULL) {
-        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0, "pid:%i|worker process stop accounting", ngx_getpid());
+        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0, "pid:%i|stop http traffic accounting", ngx_getpid());
     } else {
-        syslog(LOG_INFO, "pid:%i|worker process stop accounting", ngx_getpid());
+        syslog(LOG_INFO, "pid:%i|stop http traffic accounting", ngx_getpid());
     }
 }
 
@@ -234,8 +233,10 @@ ngx_http_accounting_request_handler(ngx_http_request_t *r)
     ngx_traffic_accounting_metrics_t   *metrics;
     ngx_http_accounting_main_conf_t    *amcf;
 
-    ngx_uint_t      status;
-    ngx_time_t * time = ngx_timeofday();
+    ngx_uint_t                   status, i;
+    ngx_time_t                  *tp = ngx_timeofday();
+    ngx_msec_int_t               ms = 0;
+    ngx_http_upstream_state_t   *state;
 
     accounting_id = ngx_http_accounting_get_accounting_id(r);
     if (accounting_id == NULL) { return NGX_ERROR; }
@@ -264,26 +265,26 @@ ngx_http_accounting_request_handler(ngx_http_request_t *r)
 
     metrics->nr_status[ngx_status_bsearch(status, ngx_http_statuses, ngx_http_statuses_len)] += 1;
 
-    metrics->total_latency_ms +=
-        (time->sec * 1000 + time->msec) - (r->start_sec * 1000 + r->start_msec);
+    ms = (ngx_msec_int_t)((tp->sec - r->start_sec) * 1000 + (tp->msec - r->start_msec));
+    ms = ngx_max(ms, 0);
+    metrics->total_latency_ms += ms;
 
     if (r->upstream_states != NULL && r->upstream_states->nelts != 0) {
-        ngx_uint_t                   upstream_req_latency_ms = 0;
-        ngx_uint_t                   i;
-        ngx_http_upstream_state_t   *state = r->upstream_states->elts;
+        ms = 0;
+        state = r->upstream_states->elts;
 
         for (i = 0; i < r->upstream_states->nelts; i++) {
             if (state[i].status) {
 #if (nginx_version < 1009000)
-                upstream_req_latency_ms += (state[i].response_sec * 1000 + state[i].response_msec);
+                ms += (state[i].response_sec * 1000 + state[i].response_msec);
 #else
-                upstream_req_latency_ms += state[i].response_time;
+                ms += state[i].response_time;
 #endif
             }
 
         }
 
-        metrics->total_upstream_latency_ms += upstream_req_latency_ms;
+        metrics->total_upstream_latency_ms += ms;
     }
 
     return NGX_DECLINED;

@@ -1,30 +1,15 @@
-ngx_addon_name=ngx_http_accounting_module
+ngx_addon_name="traffic-accounting-nginx-module"
 
-HTTP_ACCOUNTING_DEPS=" \
+TRAFFIC_ACCOUNTING_DEPS=" \
     $ngx_addon_dir/src/ngx_traffic_accounting.h \
     $ngx_addon_dir/src/ngx_traffic_accounting_module.h \
-    $ngx_addon_dir/src/ngx_http_accounting_module.h \
     "
-
-HTTP_ACCOUNTING_SRCS=" \
+TRAFFIC_ACCOUNTING_SRCS=" \
     $ngx_addon_dir/src/ngx_traffic_accounting_log.c \
     $ngx_addon_dir/src/ngx_traffic_accounting_module.c \
     $ngx_addon_dir/src/ngx_traffic_accounting_module_conf.c \
     $ngx_addon_dir/src/ngx_traffic_accounting_period_metrics.c \
     $ngx_addon_dir/src/ngx_traffic_accounting_statuses.c \
-    $ngx_addon_dir/src/ngx_http_accounting_module.c \
-    $ngx_addon_dir/src/ngx_http_accounting_statuses.c \
     "
 
-if test -n "$ngx_module_link"; then
-    ngx_module_type=HTTP
-    ngx_module_name=$ngx_addon_name
-    ngx_module_incs=$ngx_addon_dir
-    ngx_module_deps=$HTTP_ACCOUNTING_DEPS
-    ngx_module_srcs=$HTTP_ACCOUNTING_SRCS
-    . auto/module
-else
-    HTTP_MODULES="$HTTP_MODULES $ngx_addon_name"
-    NGX_ADDON_SRCS="$NGX_ADDON_SRCS $HTTP_ACCOUNTING_SRCS"
-    NGX_ADDON_DEPS="$NGX_ADDON_DEPS $HTTP_ACCOUNTING_DEPS"
-fi
+. $ngx_addon_dir/ngx_http_accounting_module
