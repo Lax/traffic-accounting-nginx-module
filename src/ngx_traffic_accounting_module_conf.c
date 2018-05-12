@@ -118,7 +118,7 @@ ngx_traffic_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, voi
 
 
 ngx_str_t *
-ngx_traffic_accounting_get_id(void *entry, ngx_get_loc_conf_pt get_loc_conf,
+ngx_traffic_accounting_get_accounting_id(void *entry, ngx_get_loc_conf_pt get_loc_conf,
     ngx_get_indexed_variable_pt get_indexed_variable)
 {
     ngx_traffic_accounting_loc_conf_t   *alcf;

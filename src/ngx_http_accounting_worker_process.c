@@ -22,7 +22,7 @@ static char entry_n[] = "requests";
 static u_char *ngx_http_accounting_title = (u_char *)"NgxAccounting";
 
 static void worker_process_alarm_handler(ngx_event_t *ev);
-static ngx_str_t *get_accounting_id(ngx_http_request_t *r);
+static ngx_str_t *ngx_http_accounting_get_accounting_id(ngx_http_request_t *r);
 
 
 ngx_int_t
@@ -92,7 +92,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
     ngx_uint_t      status;
     ngx_time_t * time = ngx_timeofday();
 
-    accounting_id = get_accounting_id(r);
+    accounting_id = ngx_http_accounting_get_accounting_id(r);
     if (accounting_id == NULL) { return NGX_ERROR; }
 
     metrics = ngx_traffic_accounting_period_fetch_metrics(ngx_http_accounting_current_period, accounting_id);
@@ -180,34 +180,22 @@ worker_process_alarm_handler(ngx_event_t *ev)
 }
 
 
-static ngx_str_t *
-get_accounting_id(ngx_http_request_t *r)
+static ngx_http_accounting_loc_conf_t *
+ngx_http_accounting_get_loc_conf(void *entry)
 {
-    ngx_http_accounting_loc_conf_t  *alcf;
-    ngx_http_variable_value_t       *vv;
-    static ngx_str_t accounting_id;
+    return ngx_http_get_module_loc_conf((ngx_http_request_t *)entry, ngx_http_accounting_module);
+}
 
-    alcf = ngx_http_get_module_loc_conf(r, ngx_http_accounting_module);
-    if (alcf == NULL)
-        return NULL;
+static ngx_http_variable_value_t *
+ngx_http_accounting_get_indexed_variable(void *entry, ngx_uint_t index)
+{
+    return ngx_http_get_indexed_variable((ngx_http_request_t *)entry, index);
+}
 
-    if (alcf->index != NGX_CONF_UNSET &&
-        alcf->index != NGX_CONF_INDEX_UNSET) {
-        vv = ngx_http_get_indexed_variable(r, alcf->index);
-
-        if ((vv != NULL) && (vv->not_found)) {
-            vv->no_cacheable = 1;
-            return NULL;
-        }
-
-        if ((vv != NULL) && (!vv->not_found)) {
-            accounting_id.len = vv->len;
-            accounting_id.data = vv->data;
-            return &accounting_id;
-        }
-    }
-
-    return &alcf->accounting_id;
+static ngx_str_t *
+ngx_http_accounting_get_accounting_id(ngx_http_request_t *r)
+{
+    return ngx_traffic_accounting_get_accounting_id(r, ngx_http_accounting_get_loc_conf, ngx_http_accounting_get_indexed_variable);
 }
 
 

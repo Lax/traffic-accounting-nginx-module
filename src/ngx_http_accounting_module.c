@@ -17,7 +17,6 @@ static ngx_int_t ngx_http_accounting_process_init(ngx_cycle_t *cycle);
 static void ngx_http_accounting_process_exit(ngx_cycle_t *cycle);
 
 static char *ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
-static char * ngx_http_accounting_set_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 static ngx_command_t  ngx_http_accounting_commands[] = {
     { ngx_string("http_accounting"),
@@ -51,7 +50,7 @@ static ngx_command_t  ngx_http_accounting_commands[] = {
 
     { ngx_string("http_accounting_log"),
       NGX_HTTP_MAIN_CONF|NGX_CONF_1MORE,
-      ngx_http_accounting_set_log,
+      ngx_traffic_accounting_set_log,
       NGX_HTTP_MAIN_CONF_OFFSET,
       0,
       NULL},
@@ -130,47 +129,5 @@ ngx_http_accounting_process_exit(ngx_cycle_t *cycle)
 static char *
 ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    ngx_http_accounting_loc_conf_t *alcf = conf;
-    ngx_str_t                 *value;
-
-    value = cf->args->elts;
-
-    if (value[1].data[0] == '$') {
-        value[1].len--;
-        value[1].data++;
-
-        alcf->index = ngx_http_get_variable_index(cf, &value[1]);
-        if (alcf->index == NGX_ERROR) {
-            return NGX_CONF_ERROR;
-        }
-        alcf->accounting_id = value[1];
-        return NGX_CONF_OK;
-    }
-
-    alcf->accounting_id = value[1];
-    alcf->index = NGX_CONF_INDEX_UNSET;
-
-    return NGX_CONF_OK;
-}
-
-static char *
-ngx_http_accounting_set_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
-{
-    ngx_http_accounting_main_conf_t   *amcf = conf;
-    char                *rc;
-    ngx_log_t           *log;
-
-    rc = ngx_log_set_log(cf, &amcf->log);
-    if (rc != NGX_CONF_OK) { return rc; }
-
-    log = amcf->log;
-    while (log) {
-        if (log->log_level < NGXTA_LOG_LEVEL) {
-            log->log_level = NGXTA_LOG_LEVEL;
-        }
-
-        log = log->next;
-    }
-
-    return NGX_CONF_OK;
+    return ngx_traffic_accounting_set_accounting_id(cf, cmd, conf, ngx_http_get_variable_index);
 }
