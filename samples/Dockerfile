@@ -42,6 +42,7 @@ RUN ln -sf /dev/stdout ${PREFIX}/logs/access.log \
     && ln -sf ../usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
 ADD samples/nginx.conf ${PREFIX}/conf/nginx.conf
+ADD samples/http.conf ${PREFIX}/conf/http.conf
 
 EXPOSE 8080
 EXPOSE 8888
