@@ -43,17 +43,17 @@ typedef struct {
     ngx_time_t        *updated_at;
 } ngx_traffic_accounting_period_t;
 
-ngx_int_t ngxta_period_rbtree_init(ngx_traffic_accounting_period_t *period);
-void ngxta_period_rbtree_insert(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
-void ngxta_period_rbtree_insert_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics);
-void ngxta_period_rbtree_delete(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
-void ngxta_period_rbtree_delete_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics);
-ngx_traffic_accounting_metrics_t * ngxta_period_rbtree_lookup_metrics(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
+ngx_int_t ngx_traffic_accounting_period_init(ngx_traffic_accounting_period_t *period);
+void ngx_traffic_accounting_period_insert(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
+void ngx_traffic_accounting_period_insert_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics);
+void ngx_traffic_accounting_period_delete(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
+void ngx_traffic_accounting_period_delete_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics);
+ngx_traffic_accounting_metrics_t * ngx_traffic_accounting_period_lookup_metrics(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
 
-typedef ngx_int_t (*ngxta_period_rbtree_iterate_func)(void *val, void *para1, void *para2);
+typedef ngx_int_t (*ngx_traffic_accounting_period_iterate_func)(void *val, void *para1, void *para2);
 
-ngx_int_t ngxta_period_rbtree_iterate(ngx_traffic_accounting_period_t *period,
-                                      ngxta_period_rbtree_iterate_func func,
+ngx_int_t ngx_traffic_accounting_period_rbtree_iterate(ngx_traffic_accounting_period_t *period,
+                                      ngx_traffic_accounting_period_iterate_func func,
                                       void *para1, void *para2 );
 
 extern ngx_traffic_accounting_period_t   *ngxta_current_metrics;

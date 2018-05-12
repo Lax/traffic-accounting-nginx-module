@@ -91,12 +91,12 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
     if (accounting_id == NULL)
         return NGX_ERROR;
 
-    ngx_traffic_accounting_metrics_t   *metrics = ngxta_period_rbtree_lookup_metrics(ngxta_current_metrics, accounting_id);
+    ngx_traffic_accounting_metrics_t   *metrics = ngx_traffic_accounting_period_lookup_metrics(ngxta_current_metrics, accounting_id);
 
     if (metrics == NULL) {
-        ngxta_period_rbtree_insert(ngxta_current_metrics, accounting_id);
+        ngx_traffic_accounting_period_insert(ngxta_current_metrics, accounting_id);
 
-        metrics = ngxta_period_rbtree_lookup_metrics(ngxta_current_metrics, accounting_id);
+        metrics = ngx_traffic_accounting_period_lookup_metrics(ngxta_current_metrics, accounting_id);
         if (metrics == NULL)
             return NGX_ERROR;
 
@@ -225,7 +225,7 @@ worker_process_alarm_handler(ngx_event_t *ev)
     ngx_http_accounting_main_conf_t *amcf;
 
     ngxta_period_rotate(ngxta_current_metrics->pool);
-    ngxta_period_rbtree_iterate(ngxta_previous_metrics,
+    ngx_traffic_accounting_period_rbtree_iterate(ngxta_previous_metrics,
                               worker_process_export_metrics,
                               ngxta_previous_metrics->created_at,
                               ngxta_previous_metrics->updated_at );

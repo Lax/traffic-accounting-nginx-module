@@ -10,20 +10,19 @@
 ngx_traffic_accounting_period_t   *ngxta_current_metrics;
 ngx_traffic_accounting_period_t   *ngxta_previous_metrics;
 
-static void ngxta_period_rbtree_insert_value(ngx_rbtree_node_t *temp, ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
+static void ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp, ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
 
 ngx_int_t
-ngxta_period_rbtree_init(ngx_traffic_accounting_period_t *period)
+ngx_traffic_accounting_period_init(ngx_traffic_accounting_period_t *period)
 {
     ngx_rbtree_init(&period->rbtree, &period->sentinel,
-                    ngxta_period_rbtree_insert_value);
+                    ngx_traffic_accounting_period_insert_value);
 
     return NGX_OK;
 }
 
 void
-ngxta_period_rbtree_insert(ngx_traffic_accounting_period_t *period,
-    ngx_str_t *name)
+ngx_traffic_accounting_period_insert(ngx_traffic_accounting_period_t *period, ngx_str_t *name)
 {
     ngx_traffic_accounting_metrics_t   *metrics;
 
@@ -36,11 +35,11 @@ ngxta_period_rbtree_insert(ngx_traffic_accounting_period_t *period,
     metrics->name.data = data;
     metrics->name.len = name->len;
 
-    ngxta_period_rbtree_insert_metrics(period, metrics);
+    ngx_traffic_accounting_period_insert_metrics(period, metrics);
 }
 
 void
-ngxta_period_rbtree_insert_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics)
+ngx_traffic_accounting_period_insert_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics)
 {
     ngx_rbtree_t *rbtree = &period->rbtree;
     ngx_rbtree_node_t *node = &metrics->rbnode;
@@ -51,26 +50,26 @@ ngxta_period_rbtree_insert_metrics(ngx_traffic_accounting_period_t *period, ngx_
 }
 
 void
-ngxta_period_rbtree_delete(ngx_traffic_accounting_period_t *period, ngx_str_t *name)
+ngx_traffic_accounting_period_delete(ngx_traffic_accounting_period_t *period, ngx_str_t *name)
 {
     ngx_traffic_accounting_metrics_t   *metrics;
 
-    metrics = ngxta_period_rbtree_lookup_metrics(period, name);
+    metrics = ngx_traffic_accounting_period_lookup_metrics(period, name);
     if (metrics == NULL)
       return;
 
-    ngxta_period_rbtree_delete_metrics(period, metrics);
+    ngx_traffic_accounting_period_delete_metrics(period, metrics);
 }
 
 void
-ngxta_period_rbtree_delete_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics)
+ngx_traffic_accounting_period_delete_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics)
 {
     ngx_rbtree_delete(&period->rbtree, &metrics->rbnode);
     ngx_pfree(period->pool, metrics);
 }
 
 ngx_traffic_accounting_metrics_t *
-ngxta_period_rbtree_lookup_metrics(ngx_traffic_accounting_period_t *period, ngx_str_t *name)
+ngx_traffic_accounting_period_lookup_metrics(ngx_traffic_accounting_period_t *period, ngx_str_t *name)
 {
     ngx_int_t           rc;
     ngx_traffic_accounting_metrics_t   *n;
@@ -108,8 +107,8 @@ ngxta_period_rbtree_lookup_metrics(ngx_traffic_accounting_period_t *period, ngx_
 }
 
 ngx_int_t
-ngxta_period_rbtree_iterate(ngx_traffic_accounting_period_t *period,
-                            ngxta_period_rbtree_iterate_func func,
+ngx_traffic_accounting_period_rbtree_iterate(ngx_traffic_accounting_period_t *period,
+                            ngx_traffic_accounting_period_iterate_func func,
                             void *para1, void *para2 )
 {
     ngx_traffic_accounting_metrics_t   *n;
@@ -139,7 +138,7 @@ ngxta_period_rbtree_iterate(ngx_traffic_accounting_period_t *period,
 }
 
 static void
-ngxta_period_rbtree_insert_value(ngx_rbtree_node_t *temp,
+ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp,
     ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel)
 {
     ngx_traffic_accounting_metrics_t   *n, *t; // node
@@ -180,7 +179,7 @@ ngxta_period_init(ngx_pool_t *pool)
 
     if (period != NULL) {
         period->pool = pool;
-        ngxta_period_rbtree_init(period);
+        ngx_traffic_accounting_period_init(period);
 
         period->created_at = ngx_timeofday();
 
