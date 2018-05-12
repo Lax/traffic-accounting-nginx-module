@@ -8,7 +8,6 @@
 
 #include "ngx_traffic_accounting.h"
 #include "ngx_http_accounting_module.h"
-#include "ngx_http_accounting_worker_process.h"
 
 
 static ngx_int_t ngx_http_accounting_init(ngx_conf_t *cf);

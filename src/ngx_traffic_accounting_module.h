@@ -8,6 +8,7 @@
 #define _NGX_TRAFFIC_ACCOUNTING_MODULE_H_INCLUDED_
 
 #include <ngx_core.h>
+#include "ngx_traffic_accounting.h"
 
 
 #define NGX_CONF_INDEX_UNSET -128
@@ -17,6 +18,9 @@ typedef struct {
     ngx_log_t      *log;
     time_t          interval;
     ngx_flag_t      perturb;
+
+    ngx_traffic_accounting_period_t   *current;
+    ngx_traffic_accounting_period_t   *previous;
 } ngx_traffic_accounting_main_conf_t;
 
 typedef struct {
@@ -40,6 +44,10 @@ typedef ngx_traffic_accounting_loc_conf_t *(*ngx_get_loc_conf_pt) (void *entry);
 typedef ngx_variable_value_t *(*ngx_get_indexed_variable_pt) (void *entry, ngx_uint_t index);
 ngx_str_t * ngx_traffic_accounting_get_accounting_id(void *entry, ngx_get_loc_conf_pt get_loc_conf,
                                     ngx_get_indexed_variable_pt get_indexed_variable);
+
+
+ngx_int_t ngx_traffic_accounting_period_create(ngx_pool_t *pool, ngx_traffic_accounting_main_conf_t *amcf);
+ngx_int_t ngx_traffic_accounting_period_rotate(ngx_pool_t *pool, ngx_traffic_accounting_main_conf_t *amcf);
 
 
 #endif /* _NGX_TRAFFIC_ACCOUNTING_MODULE_H_INCLUDED_ */

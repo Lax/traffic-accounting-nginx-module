@@ -11,11 +11,7 @@
 
 #include "ngx_traffic_accounting.h"
 #include "ngx_http_accounting_module.h"
-#include "ngx_http_accounting_worker_process.h"
 
-
-ngx_traffic_accounting_period_t   *ngx_http_accounting_current_period;
-ngx_traffic_accounting_period_t   *ngx_http_accounting_previous_period;
 
 static char entry_n[] = "requests";
 
@@ -28,7 +24,7 @@ static ngx_str_t *ngx_http_accounting_get_accounting_id(ngx_http_request_t *r);
 ngx_int_t
 ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
 {
-    ngx_http_accounting_main_conf_t *amcf;
+    ngx_http_accounting_main_conf_t   *amcf;
     static ngx_event_t worker_process_alarm_event;
 
     amcf = ngx_http_cycle_get_module_main_conf(cycle, ngx_http_accounting_module);
@@ -36,7 +32,8 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
         return NGX_OK;
     }
 
-    ngx_http_accounting_period_create(cycle->pool);
+    if (amcf->current == NULL)
+        ngx_traffic_accounting_period_create(cycle->pool, amcf);
 
     if (amcf->log != NULL) {
         ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0, "pid:%i|worker process start accounting", ngx_getpid());
@@ -88,6 +85,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
 {
     ngx_str_t                          *accounting_id;
     ngx_traffic_accounting_metrics_t   *metrics;
+    ngx_http_accounting_main_conf_t    *amcf;
 
     ngx_uint_t      status;
     ngx_time_t * time = ngx_timeofday();
@@ -95,13 +93,15 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
     accounting_id = ngx_http_accounting_get_accounting_id(r);
     if (accounting_id == NULL) { return NGX_ERROR; }
 
-    metrics = ngx_traffic_accounting_period_fetch_metrics(ngx_http_accounting_current_period, accounting_id);
+    amcf = ngx_http_get_module_main_conf(r, ngx_http_accounting_module);
+
+    metrics = ngx_traffic_accounting_period_fetch_metrics(amcf->current, accounting_id);
     if (metrics == NULL) { return NGX_ERROR; }
 
-    if (ngx_traffic_accounting_metrics_init(metrics, ngx_http_accounting_current_period->pool, ngx_http_statuses_len) == NGX_ERROR)
+    if (ngx_traffic_accounting_metrics_init(metrics, amcf->current->pool, ngx_http_statuses_len) == NGX_ERROR)
         return NGX_ERROR;
 
-    ngx_http_accounting_current_period->updated_at = ngx_timeofday();
+    amcf->current->updated_at = ngx_timeofday();
 
     metrics->nr_entries += 1;
     metrics->bytes_in += r->request_length;
@@ -165,16 +165,16 @@ worker_process_alarm_handler(ngx_event_t *ev)
 {
     ngx_http_accounting_main_conf_t *amcf;
 
-    ngx_http_accounting_period_rotate(ngx_http_accounting_current_period->pool);
-    ngx_traffic_accounting_period_rbtree_iterate(ngx_http_accounting_previous_period,
+    amcf = ngx_http_cycle_get_module_main_conf(ngx_cycle, ngx_http_accounting_module);
+
+    ngx_traffic_accounting_period_rotate(amcf->current->pool, amcf);
+    ngx_traffic_accounting_period_rbtree_iterate(amcf->previous,
                               worker_process_export_metrics,
-                              ngx_http_accounting_previous_period->created_at,
-                              ngx_http_accounting_previous_period->updated_at );
+                              amcf->previous->created_at,
+                              amcf->previous->updated_at );
 
     if (ngx_exiting || ev == NULL)
         return;
-
-    amcf = ngx_http_cycle_get_module_main_conf(ngx_cycle, ngx_http_accounting_module);
 
     ngx_add_timer(ev, (ngx_msec_t)amcf->interval * 1000);
 }
@@ -196,31 +196,4 @@ static ngx_str_t *
 ngx_http_accounting_get_accounting_id(ngx_http_request_t *r)
 {
     return ngx_traffic_accounting_get_accounting_id(r, ngx_http_accounting_get_loc_conf, ngx_http_accounting_get_indexed_variable);
-}
-
-
-ngx_int_t
-ngx_http_accounting_period_create(ngx_pool_t *pool)
-{
-    ngx_traffic_accounting_period_t   *period = ngx_pcalloc(pool, sizeof(ngx_traffic_accounting_period_t));
-    if (period == NULL)
-        return NGX_ERROR;
-
-    period->pool = pool;
-    ngx_traffic_accounting_period_init(period);
-
-    period->created_at = ngx_timeofday();
-
-    ngx_http_accounting_current_period = period;
-    return NGX_OK;
-}
-
-ngx_int_t
-ngx_http_accounting_period_rotate(ngx_pool_t *pool)
-{
-    ngx_pfree(pool, ngx_http_accounting_previous_period);
-
-    ngx_http_accounting_previous_period = ngx_http_accounting_current_period;
-
-    return ngx_http_accounting_period_create(pool);
 }

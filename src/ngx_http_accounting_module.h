@@ -27,4 +27,13 @@ extern ngx_uint_t ngx_http_statuses[];
 extern ngx_uint_t ngx_http_statuses_len;
 
 
+// Worker
+ngx_int_t ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle);
+void ngx_http_accounting_worker_process_exit(ngx_cycle_t *cycle);
+
+
+// Request handler
+ngx_int_t ngx_http_accounting_handler(ngx_http_request_t *r);
+
+
 #endif /* _NGX_HTTP_ACCOUNTING_MODULE_H_INCLUDED_ */
