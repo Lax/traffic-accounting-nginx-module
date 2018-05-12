@@ -26,39 +26,39 @@ static ngx_str_t *ngx_http_accounting_get_accounting_id(ngx_http_request_t *r);
 
 
 static ngx_command_t  ngx_http_accounting_commands[] = {
-    { ngx_string("http_accounting"),
+    { ngx_string("accounting"),
       NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_flag_slot,
       NGX_HTTP_MAIN_CONF_OFFSET,
       offsetof(ngx_http_accounting_main_conf_t, enable),
       NULL},
 
-    { ngx_string("http_accounting_id"),
-      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF
-                        |NGX_CONF_TAKE1,
-      ngx_http_accounting_set_accounting_id,
-      NGX_HTTP_LOC_CONF_OFFSET,
-      0,
-      NULL},
-
-    { ngx_string("http_accounting_interval"),
+    { ngx_string("accounting_interval"),
       NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_sec_slot,
       NGX_HTTP_MAIN_CONF_OFFSET,
       offsetof(ngx_http_accounting_main_conf_t, interval),
       NULL},
 
-    { ngx_string("http_accounting_perturb"),
+    { ngx_string("accounting_perturb"),
       NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_flag_slot,
       NGX_HTTP_MAIN_CONF_OFFSET,
       offsetof(ngx_http_accounting_main_conf_t, perturb),
       NULL},
 
-    { ngx_string("http_accounting_log"),
+    { ngx_string("accounting_log"),
       NGX_HTTP_MAIN_CONF|NGX_CONF_1MORE,
       ngx_traffic_accounting_set_log,
       NGX_HTTP_MAIN_CONF_OFFSET,
+      0,
+      NULL},
+
+    { ngx_string("accounting_id"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF
+                        |NGX_CONF_TAKE1,
+      ngx_http_accounting_set_accounting_id,
+      NGX_HTTP_LOC_CONF_OFFSET,
       0,
       NULL},
 
@@ -267,6 +267,7 @@ ngx_http_accounting_request_handler(ngx_http_request_t *r)
 
     ms = (ngx_msec_int_t)((tp->sec - r->start_sec) * 1000 + (tp->msec - r->start_msec));
     ms = ngx_max(ms, 0);
+
     metrics->total_latency_ms += ms;
 
     if (r->upstream_states != NULL && r->upstream_states->nelts != 0) {
@@ -281,7 +282,6 @@ ngx_http_accounting_request_handler(ngx_http_request_t *r)
                 ms += state[i].response_time;
 #endif
             }
-
         }
 
         metrics->total_upstream_latency_ms += ms;

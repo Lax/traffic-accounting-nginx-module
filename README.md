@@ -1,6 +1,6 @@
 # About
 
-Monitor the incoming and outgoing traffic metrics in realtime for `NGINX` http subsystem.
+Monitor the incoming and outgoing traffic metrics in realtime for `NGINX`.
 
 Realtime traffic and status code monitor solution for NGINX, need less memory and cpu than realtime log analyzing.
 Useful for http traffic accounting based on NGINX config logic ( by-location or by-server or by-user-defined-variable ).
@@ -44,26 +44,25 @@ Example:
 ```nginx
 http{
     # turn on accounting function
-    http_accounting  on;
+    accounting  on;
+    accounting_log  logs/http-accounting.log;
     ...
     server {
         server_name example.com;
 
-        # set accounting_id based on server, use variable
-        http_accounting_id  $http_host;
+        accounting_id  $http_host;  # set accounting_id string by variable
         ...
         location / {
-            # set accounting_id based on location
-            http_accounting_id  accounting_id_str;
+            accounting_id  accounting_id_str;  # set accounting_id string by location
             ...
         }
 
         location /api {
             # for pc
-            http_accounting_id  accounting_id_pc;
+            accounting_id  accounting_id_pc;
             # for mobile
             if ($http_user_agent ~* '(Android|webOS|iPhone|iPod|BlackBerry)') {
-                http_accounting_id  accounting_id_mobile;
+                accounting_id  accounting_id_mobile;
             }
             ...
         }
@@ -74,17 +73,17 @@ http{
 
 # Directives
 
-http_accounting
+accounting
 --------------------
-**syntax:** *http_accounting on | off*
+**syntax:** *accounting on | off*
 
-**default:** *http_accounting off*
+**default:** *accounting off*
 
 **context:** *http*
 
-http_accounting_log
+accounting_log
 --------------------
-**syntax:** *http_accounting_log \</path/to/log/file> \[level]*
+**syntax:** *accounting_log \</path/to/log/file> \[level]*
 
 **default:** *-*
 
@@ -97,32 +96,32 @@ For more details of supported params, refer to [this page from nginx.org](http:/
 
 If not specified, accounting log will be written to `/dev/log`.
 
-http_accounting_id
+accounting_id
 --------------------
-**syntax:** *http_accounting_id \<accounting_id>*
+**syntax:** *accounting_id \<accounting_id>*
 
-**default:** *http_accounting_id default*
+**default:** *accounting_id default*
 
 **context:** *server, location, if in location*
 
 Sets the `accounting_id` string by user defined variable.
 This string is used to determine which `metrics` a request/session should be aggregated to.
 
-http_accounting_interval
+accounting_interval
 ------------------------
-**syntax:** *http_accounting_interval \<seconds>*
+**syntax:** *accounting_interval \<seconds>*
 
-**default:** *http_accounting_interval 60*
+**default:** *accounting_interval 60*
 
 **context:** *http*
 
 Specifies the reporting interval.  Defaults to 60 seconds.
 
-http_accounting_perturb
+accounting_perturb
 ------------------------
-**syntax:** *http_accounting_perturb on | off*
+**syntax:** *accounting_perturb on | off*
 
-**default:** *http_accounting_perturb off*
+**default:** *accounting_perturb off*
 
 **context:** *http*
 
@@ -147,7 +146,7 @@ The output contains a list of k/v for the accounting metrics, in the sequence of
 |------------------|----------|
 | `pid`           | pid of nginx worker process |
 | `from` / `to`   | metric was collected between these timestamps |
-| `accounting_id` | identify the accounting unit, set with `http_accounting_id` directive |
+| `accounting_id` | identify the accounting unit, set with `accounting_id` directive |
 | `requests`      | count of total requests processed in current period |
 | `bytes_in`      | total bytes receiverd by the server |
 | `bytes_out`     | total bytes send out by the server |
