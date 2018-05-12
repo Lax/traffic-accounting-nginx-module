@@ -38,13 +38,16 @@ WORKDIR ${PREFIX}
 
 RUN ln -sf /dev/stdout ${PREFIX}/logs/access.log \
     && ln -sf /dev/stderr ${PREFIX}/logs/http-accounting.log \
+    && ln -sf /dev/stderr ${PREFIX}/logs/stream-accounting.log \
     && ln -sf /dev/stderr ${PREFIX}/logs/error.log \
     && ln -sf ../usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
 ADD samples/nginx.conf ${PREFIX}/conf/nginx.conf
 ADD samples/http.conf ${PREFIX}/conf/http.conf
+ADD samples/stream.conf ${PREFIX}/conf/stream.conf
 
 EXPOSE 8080
 EXPOSE 8888
+EXPOSE 9999
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["./sbin/nginx", "-g", "daemon off;"]
