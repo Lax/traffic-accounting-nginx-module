@@ -13,3 +13,4 @@ TRAFFIC_ACCOUNTING_SRCS=" \
     "
 
 . $ngx_addon_dir/ngx_http_accounting_module
+. $ngx_addon_dir/ngx_stream_accounting_module

@@ -1,0 +1,17 @@
+[ $STREAM != NO ] || exit 0
+
+STREAM_ACCOUNTING_DEPS=" \
+    $ngx_addon_dir/src/stream/ngx_stream_accounting_module.h \
+    "
+STREAM_ACCOUNTING_SRCS=" \
+    $ngx_addon_dir/src/stream/ngx_stream_accounting_module.c \
+    $ngx_addon_dir/src/stream/ngx_stream_accounting_statuses.c \
+    "
+
+ngx_module_type=STREAM
+ngx_module_name=ngx_stream_accounting_module
+ngx_module_incs=$ngx_addon_dir
+ngx_module_deps="$TRAFFIC_ACCOUNTING_DEPS $STREAM_ACCOUNTING_DEPS"
+ngx_module_srcs="$TRAFFIC_ACCOUNTING_SRCS $STREAM_ACCOUNTING_SRCS"
+
+. auto/module
