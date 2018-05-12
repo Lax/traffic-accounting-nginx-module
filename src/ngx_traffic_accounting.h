@@ -56,11 +56,6 @@ ngx_int_t ngx_traffic_accounting_period_rbtree_iterate(ngx_traffic_accounting_pe
                                       ngx_traffic_accounting_period_iterate_func func,
                                       void *para1, void *para2 );
 
-extern ngx_traffic_accounting_period_t   *ngxta_current_metrics;
-extern ngx_traffic_accounting_period_t   *ngxta_previous_metrics;
-
-ngx_int_t ngxta_period_init(ngx_pool_t *pool);
-ngx_int_t ngxta_period_rotate(ngx_pool_t *pool);
 
 /*
  * Log

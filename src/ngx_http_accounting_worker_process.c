@@ -14,6 +14,9 @@
 #include "ngx_http_accounting_worker_process.h"
 
 
+ngx_traffic_accounting_period_t   *ngx_http_accounting_current_period;
+ngx_traffic_accounting_period_t   *ngx_http_accounting_previous_period;
+
 static u_char *ngx_http_accounting_title = (u_char *)"NgxAccounting";
 
 static void worker_process_alarm_handler(ngx_event_t *ev);
@@ -31,7 +34,7 @@ ngx_http_accounting_worker_process_init(ngx_cycle_t *cycle)
         return NGX_OK;
     }
 
-    ngxta_period_init(cycle->pool);
+    ngx_http_accounting_period_create(cycle->pool);
 
     if (amcf->log != NULL) {
         ngx_log_error(NGX_LOG_NOTICE, amcf->log, 0, "pid:%i|worker process start accounting", ngx_getpid());
@@ -91,19 +94,19 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
     if (accounting_id == NULL)
         return NGX_ERROR;
 
-    ngx_traffic_accounting_metrics_t   *metrics = ngx_traffic_accounting_period_lookup_metrics(ngxta_current_metrics, accounting_id);
+    ngx_traffic_accounting_metrics_t   *metrics = ngx_traffic_accounting_period_lookup_metrics(ngx_http_accounting_current_period, accounting_id);
 
     if (metrics == NULL) {
-        ngx_traffic_accounting_period_insert(ngxta_current_metrics, accounting_id);
+        ngx_traffic_accounting_period_insert(ngx_http_accounting_current_period, accounting_id);
 
-        metrics = ngx_traffic_accounting_period_lookup_metrics(ngxta_current_metrics, accounting_id);
+        metrics = ngx_traffic_accounting_period_lookup_metrics(ngx_http_accounting_current_period, accounting_id);
         if (metrics == NULL)
             return NGX_ERROR;
 
         if (ngx_rstrncmp(accounting_id->data, metrics->name.data, accounting_id->len) != 0)
             return NGX_ERROR;
 
-        metrics->nr_statuses = ngx_pcalloc(ngxta_current_metrics->pool,
+        metrics->nr_statuses = ngx_pcalloc(ngx_http_accounting_current_period->pool,
                                    sizeof(ngx_uint_t) * ngx_http_statuses_len);
         if (metrics->nr_statuses == NULL)
             return NGX_ERROR;
@@ -145,7 +148,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
         metrics->total_upstream_latency_ms += upstream_req_latency_ms;
     }
 
-    ngxta_current_metrics->updated_at = ngx_timeofday();
+    ngx_http_accounting_current_period->updated_at = ngx_timeofday();
 
     return NGX_DECLINED;
 }
@@ -224,11 +227,11 @@ worker_process_alarm_handler(ngx_event_t *ev)
 {
     ngx_http_accounting_main_conf_t *amcf;
 
-    ngxta_period_rotate(ngxta_current_metrics->pool);
-    ngx_traffic_accounting_period_rbtree_iterate(ngxta_previous_metrics,
+    ngx_http_accounting_period_rotate(ngx_http_accounting_current_period->pool);
+    ngx_traffic_accounting_period_rbtree_iterate(ngx_http_accounting_previous_period,
                               worker_process_export_metrics,
-                              ngxta_previous_metrics->created_at,
-                              ngxta_previous_metrics->updated_at );
+                              ngx_http_accounting_previous_period->created_at,
+                              ngx_http_accounting_previous_period->updated_at );
 
     if (ngx_exiting || ev == NULL)
         return;
@@ -267,4 +270,31 @@ get_accounting_id(ngx_http_request_t *r)
     }
 
     return &alcf->accounting_id;
+}
+
+
+ngx_int_t
+ngx_http_accounting_period_create(ngx_pool_t *pool)
+{
+    ngx_traffic_accounting_period_t   *period = ngx_pcalloc(pool, sizeof(ngx_traffic_accounting_period_t));
+    if (period == NULL)
+        return NGX_ERROR;
+
+    period->pool = pool;
+    ngx_traffic_accounting_period_init(period);
+
+    period->created_at = ngx_timeofday();
+
+    ngx_http_accounting_current_period = period;
+    return NGX_OK;
+}
+
+ngx_int_t
+ngx_http_accounting_period_rotate(ngx_pool_t *pool)
+{
+    ngx_pfree(pool, ngx_http_accounting_previous_period);
+
+    ngx_http_accounting_previous_period = ngx_http_accounting_current_period;
+
+    return ngx_http_accounting_period_create(pool);
 }

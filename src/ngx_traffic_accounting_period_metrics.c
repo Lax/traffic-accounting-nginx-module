@@ -7,9 +7,6 @@
 #include "ngx_traffic_accounting.h"
 
 
-ngx_traffic_accounting_period_t   *ngxta_current_metrics;
-ngx_traffic_accounting_period_t   *ngxta_previous_metrics;
-
 static void ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp, ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
 
 ngx_int_t
@@ -169,33 +166,4 @@ ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp,
     node->left = sentinel;
     node->right = sentinel;
     ngx_rbt_red(node);
-}
-
-
-ngx_int_t
-ngxta_period_init(ngx_pool_t *pool)
-{
-    ngx_traffic_accounting_period_t   *period = ngx_pcalloc(pool, sizeof(ngx_traffic_accounting_period_t));
-
-    if (period != NULL) {
-        period->pool = pool;
-        ngx_traffic_accounting_period_init(period);
-
-        period->created_at = ngx_timeofday();
-
-        ngxta_current_metrics = period;
-        return NGX_OK;
-    }
-
-    return NGX_ERROR;
-}
-
-ngx_int_t
-ngxta_period_rotate(ngx_pool_t *pool)
-{
-    ngx_pfree(pool, ngxta_previous_metrics);
-
-    ngxta_previous_metrics = ngxta_current_metrics;
-
-    return ngxta_period_init(pool);
 }
