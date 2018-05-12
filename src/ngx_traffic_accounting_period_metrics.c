@@ -25,9 +25,9 @@ void
 ngxta_period_rbtree_insert(ngxta_period_rbtree_t *period,
     ngx_str_t *name)
 {
-    ngxta_metrics_rbnode_t *metrics;
+    ngx_traffic_accounting_metrics_t   *metrics;
 
-    metrics = ngx_pcalloc(period->pool, sizeof(ngxta_metrics_rbnode_t));
+    metrics = ngx_pcalloc(period->pool, sizeof(ngx_traffic_accounting_metrics_t));
 
     void *data;
     data = ngx_pcalloc(period->pool, name->len+1);
@@ -41,7 +41,7 @@ ngxta_period_rbtree_insert(ngxta_period_rbtree_t *period,
 
 void
 ngxta_period_rbtree_insert_metrics(ngxta_period_rbtree_t *period,
-    ngxta_metrics_rbnode_t *metrics)
+    ngx_traffic_accounting_metrics_t *metrics)
 {
     ngx_rbtree_t *rbtree = &period->rbtree;
     ngx_rbtree_node_t *node = &metrics->rbnode;
@@ -55,7 +55,7 @@ void
 ngxta_period_rbtree_delete(ngxta_period_rbtree_t *period,
     ngx_str_t *name)
 {
-    ngxta_metrics_rbnode_t *metrics;
+    ngx_traffic_accounting_metrics_t   *metrics;
 
     metrics = ngxta_period_rbtree_lookup_metrics(period, name);
     if (metrics == NULL)
@@ -66,18 +66,18 @@ ngxta_period_rbtree_delete(ngxta_period_rbtree_t *period,
 
 void
 ngxta_period_rbtree_delete_metrics(ngxta_period_rbtree_t *period,
-    ngxta_metrics_rbnode_t *metrics)
+    ngx_traffic_accounting_metrics_t *metrics)
 {
     ngx_rbtree_delete(&period->rbtree, &metrics->rbnode);
     ngx_pfree(period->pool, metrics);
 }
 
-ngxta_metrics_rbnode_t *
+ngx_traffic_accounting_metrics_t *
 ngxta_period_rbtree_lookup_metrics(ngxta_period_rbtree_t *period,
     ngx_str_t *name)
 {
     ngx_int_t           rc;
-    ngxta_metrics_rbnode_t *n;
+    ngx_traffic_accounting_metrics_t   *n;
     ngx_rbtree_node_t  *node, *sentinel;
 
     ngx_rbtree_key_t hash = ngx_hash_key_lc(name->data, name->len);
@@ -92,7 +92,7 @@ ngxta_period_rbtree_lookup_metrics(ngxta_period_rbtree_t *period,
             continue;
         }
 
-        n = (ngxta_metrics_rbnode_t *) node;
+        n = (ngx_traffic_accounting_metrics_t *) node;
         rc = ngx_rstrncmp(name->data, n->name.data, name->len);
 
         if (rc < 0) {
@@ -115,7 +115,7 @@ ngx_int_t
 ngxta_period_rbtree_iterate(ngxta_period_rbtree_t *period,
                 ngxta_period_rbtree_iterate_func func, void *para1, void *para2)
 {
-    ngxta_metrics_rbnode_t *n;
+    ngx_traffic_accounting_metrics_t   *n;
     ngx_rbtree_node_t  *node, *sentinel;
     ngx_int_t           ret_code;
 
@@ -124,7 +124,7 @@ ngxta_period_rbtree_iterate(ngxta_period_rbtree_t *period,
     sentinel = rbtree->sentinel;
 
     while (node != sentinel) {
-        n = (ngxta_metrics_rbnode_t *) node;
+        n = (ngx_traffic_accounting_metrics_t *) node;
         ret_code = func(n, para1, para2);
 
         if (ret_code != NGX_OK)
@@ -145,12 +145,12 @@ static void
 ngxta_period_rbtree_insert_value(ngx_rbtree_node_t *temp,
     ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel)
 {
-    ngxta_metrics_rbnode_t      *n, *t; // node
+    ngx_traffic_accounting_metrics_t   *n, *t; // node
     ngx_rbtree_node_t  **p;
 
     for ( ;; ) {
-        n = (ngxta_metrics_rbnode_t *) node;
-        t = (ngxta_metrics_rbnode_t *) temp;
+        n = (ngx_traffic_accounting_metrics_t *) node;
+        t = (ngx_traffic_accounting_metrics_t *) temp;
 
         if (node->key != temp->key) {
             p = (node->key < temp->key) ? &temp->left : &temp->right;

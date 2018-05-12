@@ -91,7 +91,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
     if (accounting_id == NULL)
         return NGX_ERROR;
 
-    ngxta_metrics_rbnode_t *metrics = ngxta_period_rbtree_lookup_metrics(ngxta_current_metrics, accounting_id);
+    ngx_traffic_accounting_metrics_t   *metrics = ngxta_period_rbtree_lookup_metrics(ngxta_current_metrics, accounting_id);
 
     if (metrics == NULL) {
         ngxta_period_rbtree_insert(ngxta_current_metrics, accounting_id);
@@ -154,7 +154,7 @@ ngx_http_accounting_handler(ngx_http_request_t *r)
 static ngx_int_t
 worker_process_export_metrics(void *val, void *para1, void *para2)
 {
-    ngxta_metrics_rbnode_t  *metrics = (ngxta_metrics_rbnode_t *)val;
+    ngx_traffic_accounting_metrics_t   *metrics = (ngx_traffic_accounting_metrics_t *)val;
     ngx_time_t *created_at = para1;
     ngx_time_t *updated_at = para2;
 

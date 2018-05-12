@@ -31,7 +31,7 @@ typedef struct {
     ngx_uint_t         total_latency_ms;
     ngx_uint_t         total_upstream_latency_ms;
     ngx_uint_t        *nr_statuses;
-} ngxta_metrics_rbnode_t;
+} ngx_traffic_accounting_metrics_t;
 
 typedef struct {
     ngx_rbtree_t       rbtree;
@@ -45,10 +45,10 @@ typedef struct {
 
 ngx_int_t ngxta_period_rbtree_init(ngxta_period_rbtree_t *period);
 void ngxta_period_rbtree_insert(ngxta_period_rbtree_t *period, ngx_str_t *name);
-void ngxta_period_rbtree_insert_metrics(ngxta_period_rbtree_t *period, ngxta_metrics_rbnode_t *metrics);
+void ngxta_period_rbtree_insert_metrics(ngxta_period_rbtree_t *period, ngx_traffic_accounting_metrics_t *metrics);
 void ngxta_period_rbtree_delete(ngxta_period_rbtree_t *period, ngx_str_t *name);
-void ngxta_period_rbtree_delete_metrics(ngxta_period_rbtree_t *period, ngxta_metrics_rbnode_t *metrics);
-ngxta_metrics_rbnode_t * ngxta_period_rbtree_lookup_metrics(ngxta_period_rbtree_t *period, ngx_str_t *name);
+void ngxta_period_rbtree_delete_metrics(ngxta_period_rbtree_t *period, ngx_traffic_accounting_metrics_t *metrics);
+ngx_traffic_accounting_metrics_t * ngxta_period_rbtree_lookup_metrics(ngxta_period_rbtree_t *period, ngx_str_t *name);
 
 typedef ngx_int_t (*ngxta_period_rbtree_iterate_func)(void *val, void *para1, void *para2);
 
