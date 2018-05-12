@@ -4,7 +4,7 @@
  */
 
 
-#include "ngxta.h"
+#include "ngx_traffic_accounting.h"
 
 
 ngxta_period_rbtree_t  *ngxta_current_metrics;

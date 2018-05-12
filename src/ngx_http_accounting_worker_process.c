@@ -9,7 +9,7 @@
 
 #include <syslog.h>
 
-#include "ngxta.h"
+#include "ngx_traffic_accounting.h"
 #include "ngx_http_accounting_module.h"
 #include "ngx_http_accounting_worker_process.h"
 

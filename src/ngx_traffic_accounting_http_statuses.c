@@ -4,7 +4,7 @@
  */
 
 
-#include "ngxta.h"
+#include "ngx_traffic_accounting.h"
 
 #include <ngx_http.h>
 

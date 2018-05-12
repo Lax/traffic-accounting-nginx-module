@@ -1,14 +1,14 @@
 ngx_addon_name=ngx_http_accounting_module
 
 HTTP_ACCOUNTING_DEPS=" \
-    $ngx_addon_dir/src/ngxta.h \
+    $ngx_addon_dir/src/ngx_traffic_accounting.h \
     $ngx_addon_dir/src/ngx_http_accounting_module.h \
     $ngx_addon_dir/src/ngx_http_accounting_worker_process.h \
     "
 
 HTTP_ACCOUNTING_SRCS=" \
-    $ngx_addon_dir/src/ngxta_http_statuses.c \
-    $ngx_addon_dir/src/ngxta_period_metrics.c \
+    $ngx_addon_dir/src/ngx_traffic_accounting_http_statuses.c \
+    $ngx_addon_dir/src/ngx_traffic_accounting_period_metrics.c \
     $ngx_addon_dir/src/ngx_http_accounting_module.c \
     $ngx_addon_dir/src/ngx_http_accounting_worker_process.c \
     "
