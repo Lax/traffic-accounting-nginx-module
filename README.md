@@ -1,4 +1,4 @@
-# About
+# traffic-accounting-nginx-module
 
 Monitor the incoming and outgoing traffic metrics in realtime for `NGINX`.
 
@@ -8,7 +8,7 @@ Realtime traffic and status code monitor solution for NGINX,
 need less memory and cpu than realtime log analyzing solutions.
 Useful for traffic accounting based on NGINX config logic (by location / server / user-defined-variables).
 
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Fnginx-http-accounting-module.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Fnginx-http-accounting-module?ref=badge_shield)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Ftraffic-accounting-nginx-module.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Ftraffic-accounting-nginx-module?ref=badge_shield)
 
 ## Why?
 
@@ -31,7 +31,7 @@ For every period (defined by `interval`), a timer event is triggered, those met
 
 # Quickstart
 
-Download pre-build binaries from [Releases](https://github.com/Lax/nginx-http-accounting-module/releases),
+Download pre-build binaries from [Releases](https://github.com/Lax/traffic-accounting-nginx-module/releases),
 place them into `./modules` sub-directory of `nginx`.
 
 Add following lines at the beginning of `nginx.conf`:
@@ -187,18 +187,18 @@ which contains a list of key-values.
 
 There are several ways to integrate traffic accounting functions into NGINX.
 
-* Download pre-build binaries from [Releases](https://github.com/Lax/nginx-http-accounting-module/releases).
+* Download pre-build binaries from [Releases](https://github.com/Lax/traffic-accounting-nginx-module/releases).
 
 * Build the binaries from sources
 
 ```
 # grab nginx source code from nginx.org, then cd to /path/to/nginx-src/
-git clone https://github.com/Lax/nginx-http-accounting-module.git
+git clone https://github.com/Lax/traffic-accounting-nginx-module.git
 
 # to build as `static` module
-./configure --prefix=/opt/nginx --with-stream --add-module=nginx-http-accounting-module
+./configure --prefix=/opt/nginx --with-stream --add-module=traffic-accounting-nginx-module
 # to build as `dynamic` module
-./configure --prefix=/opt/nginx --with-stream --add-dynamic-module=nginx-http-accounting-module
+./configure --prefix=/opt/nginx --with-stream --add-dynamic-module=traffic-accounting-nginx-module
 
 make && make install
 ```
@@ -246,23 +246,23 @@ See [samples/elk/](samples/elk/) for examples.
 
 # Contributing
 
-1. Fork it ( https://github.com/Lax/nginx-http-accounting-module/fork )
+1. Fork it ( https://github.com/Lax/traffic-accounting-nginx-module/fork )
 2. Create your feature branch (`git checkout -b my-new-feature`)
 3. Commit your changes (`git commit -am 'Add some feature'`)
 4. Push to the branch (`git push origin my-new-feature`)
 5. Create a new Pull Request
 
-[Known issues](https://github.com/Lax/nginx-http-accounting-module/issues?q=)
+[Known issues](https://github.com/Lax/traffic-accounting-nginx-module/issues?q=)
 
 # Author
 
 Liu Lantao [Github@Lax](https://github.com/Lax)
 
-[Contributors](https://github.com/Lax/nginx-http-accounting-module/graphs/contributors)
+[Contributors](https://github.com/Lax/traffic-accounting-nginx-module/graphs/contributors)
 
 # License
 
 [BSD-2-Clause](LICENSE)
 
 
-[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Fnginx-http-accounting-module.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Fnginx-http-accounting-module?ref=badge_large)
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Ftraffic-accounting-nginx-module.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Ftraffic-accounting-nginx-module?ref=badge_large)
