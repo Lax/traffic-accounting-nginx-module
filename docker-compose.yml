@@ -23,7 +23,7 @@ services:
     networks:
       - elk
     volumes:
-      - ./samples/elkg:/etc/logstash
+      - ./samples/logstash:/etc/logstash
     command: logstash -f /etc/logstash/logstash.conf
     depends_on:
       - elasticsearch

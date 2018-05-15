@@ -27,6 +27,7 @@ When a new **request** hits the server, the module will try to find its `account
 
 For every period (defined by `interval`), a timer event is triggered, those metrics are rotated and exported to log files or sent to remote log servers.
 
+
 ---
 
 # Quickstart
@@ -44,6 +45,13 @@ load_module modules/ngx_stream_accounting_module.so;
 Reload nginx config with `nginx -s reload`. *Done!*
 
 *Alternatively, you can install this module manually with the Nginx source, see the [installation instructions](#Installation)*
+
+---
+
+## Dashboard
+
+**Dashboard - Visualize with Grafana**
+![Accounting Dashboard](http://lax.github.io/traffic-accounting-nginx-module/images/accounting-dashboard.png)
 
 ---
 
@@ -92,7 +100,7 @@ accounting
 
 **default:** *accounting off*
 
-**context:** *http*
+**context:** *http, stream*
 
 accounting_log
 --------------------
@@ -100,7 +108,7 @@ accounting_log
 
 **default:** *-*
 
-**context:** *http*
+**context:** *http, stream*
 
 Configures logging.
 
@@ -116,7 +124,7 @@ accounting_id
 
 **default:** *accounting_id default*
 
-**context:** *server, location, if in location*
+**context:** *http, stream, server, location, if in location*
 
 Sets the `accounting_id` string by user defined variable.
 
@@ -128,7 +136,7 @@ accounting_interval
 
 **default:** *accounting_interval 60*
 
-**context:** *http*
+**context:** *http, stream*
 
 Specifies the reporting interval.  Defaults to 60 seconds.
 
@@ -138,7 +146,7 @@ accounting_perturb
 
 **default:** *accounting_perturb off*
 
-**context:** *http*
+**context:** *http, stream*
 
 Randomly staggers the reporting interval by 20% from the usual time.
 
@@ -147,10 +155,31 @@ Randomly staggers the reporting interval by 20% from the usual time.
 This module can be configured to writes metrics to local file, remote log server or local syslog device.
 
 Open-source log-aggregation software such as logstash also support syslog input, which will help you establish a central log server.
-See [samples/elk/](samples/elk/) for examples. [**Recommended**]
+See [samples/logstash/](samples/logstash/) for examples. [**Recommended**]
 
 To collect logs with local syslog,
 refer [Lax/ngx_http_accounting_module-utils](http://github.com/Lax/ngx_http_accounting_module-utils) to for sample configuration / utils.
+
+## docker / docker-compose
+To demonstrate with docker-compose, run
+
+```
+docker-compose build
+docker-compose up -d
+```
+
+Open Grafana (address: `http://localhost:3000`) in your browser.
+
+Create and configurate elasticsearch datasource with options:
+```
+Type: elasticsearch
+URL: http://elasticsearch:9200
+Version: 5.6+
+Min time interval: 1m
+```
+
+Then import accounting dashboard from  `[samples/accounting-dashboard-grafana.json](samples/accounting-dashboard-grafana.json)`.
+
 
 ## Metrics log format
 
