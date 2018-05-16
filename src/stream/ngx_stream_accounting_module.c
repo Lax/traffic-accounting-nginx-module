@@ -9,7 +9,7 @@
 #include "ngx_stream_accounting_module.h"
 
 
-static char entry_n[] = "session";
+static char entry_n[] = "sessions";
 static u_char *ngx_stream_accounting_title = (u_char *)"NgxAccounting";
 
 static ngx_int_t ngx_stream_accounting_init(ngx_conf_t *cf);
