@@ -139,8 +139,7 @@ ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *per
 
 ngx_int_t
 ngx_traffic_accounting_period_rbtree_iterate(ngx_traffic_accounting_period_t *period,
-                            ngx_traffic_accounting_period_iterate_func func,
-                            void *para1, void *para2 )
+    ngx_traffic_accounting_period_iterate_func func, void *para1, void *para2)
 {
     ngx_rbtree_t                       *rbtree;
     ngx_rbtree_node_t                  *node, *sentinel;

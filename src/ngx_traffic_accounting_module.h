@@ -37,13 +37,13 @@ char * ngx_traffic_accounting_set_log(ngx_conf_t *cf, ngx_command_t *cmd, void *
 
 typedef ngx_int_t (*ngx_get_variable_index_pt) (ngx_conf_t *cf, ngx_str_t *name);
 char * ngx_traffic_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf,
-  ngx_get_variable_index_pt get_variable_index );
+    ngx_get_variable_index_pt get_variable_index);
 
 
 typedef ngx_traffic_accounting_loc_conf_t *(*ngx_get_loc_conf_pt) (void *entry);
 typedef ngx_variable_value_t *(*ngx_get_indexed_variable_pt) (void *entry, ngx_uint_t index);
 ngx_str_t * ngx_traffic_accounting_get_accounting_id(void *entry, ngx_get_loc_conf_pt get_loc_conf,
-                                    ngx_get_indexed_variable_pt get_indexed_variable);
+    ngx_get_indexed_variable_pt get_indexed_variable);
 
 
 ngx_int_t ngx_traffic_accounting_period_create(ngx_pool_t *pool, ngx_traffic_accounting_main_conf_t *amcf);

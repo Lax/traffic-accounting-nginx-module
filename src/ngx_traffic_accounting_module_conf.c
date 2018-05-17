@@ -88,7 +88,7 @@ ngx_traffic_accounting_set_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 char *
 ngx_traffic_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf,
-  ngx_get_variable_index_pt get_variable_index )
+    ngx_get_variable_index_pt get_variable_index)
 {
     ngx_traffic_accounting_loc_conf_t   *alcf = conf;
     ngx_str_t                           *value;

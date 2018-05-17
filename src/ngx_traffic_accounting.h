@@ -57,8 +57,7 @@ ngx_traffic_accounting_metrics_t * ngx_traffic_accounting_period_fetch_metrics(n
 typedef ngx_int_t (*ngx_traffic_accounting_period_iterate_func)(void *val, void *para1, void *para2);
 
 ngx_int_t ngx_traffic_accounting_period_rbtree_iterate(ngx_traffic_accounting_period_t *period,
-                                      ngx_traffic_accounting_period_iterate_func func,
-                                      void *para1, void *para2 );
+    ngx_traffic_accounting_period_iterate_func func, void *para1, void *para2);
 
 
 /*
