@@ -1,6 +1,6 @@
 {
   "version" : 1,
-  "template" : "logstash-*",
+  "template" : "ngx_accounting-*",
   "settings" : {
     "index" : {
       "refresh_interval" : "5s"

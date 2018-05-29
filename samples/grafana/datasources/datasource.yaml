@@ -4,7 +4,7 @@ datasources:
   - name: accounting_es
     type: elasticsearch
     access: proxy
-    # database: "[logstash-]xxxx.ww"
+    database: "ngx_accounting-*"
     url: http://elasticsearch:9200
     jsonData:
       esVersion: 56
