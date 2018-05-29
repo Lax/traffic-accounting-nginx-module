@@ -332,8 +332,7 @@
       },
       "yaxes": [
         {
-          "decimals": null,
-          "format": "bytes",
+          "format": "short",
           "label": "",
           "logBase": 1,
           "max": null,
@@ -438,9 +437,7 @@
               "field": "nr_entries",
               "id": "1",
               "meta": {},
-              "settings": {
-                "missing": null
-              },
+              "settings": {},
               "type": "sum"
             }
           ],
@@ -450,8 +447,6 @@
         }
       ],
       "thresholds": "",
-      "timeFrom": null,
-      "timeShift": null,
       "title": "entries",
       "transparent": true,
       "type": "singlestat",
@@ -1115,7 +1110,7 @@
         }
       ],
       "thresholds": "",
-      "title": "entries [[accounting_id]]",
+      "title": "entries",
       "transparent": true,
       "type": "singlestat",
       "valueFontSize": "50%",
@@ -1218,7 +1213,7 @@
         }
       ],
       "thresholds": "",
-      "title": "Inbound: [[accounting_id]]",
+      "title": "Inbound",
       "transparent": true,
       "type": "singlestat",
       "valueFontSize": "50%",
@@ -1321,7 +1316,7 @@
         }
       ],
       "thresholds": "",
-      "title": "Outbound: [[accounting_id]]",
+      "title": "Outbound",
       "transparent": true,
       "type": "singlestat",
       "valueFontSize": "50%",
