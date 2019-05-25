@@ -4,7 +4,7 @@ RUN yum install gcc make pcre-devel zlib-devel openssl-devel -y \
     && yum clean all
 
 ENV PREFIX /opt/nginx
-ENV NGX_VER 1.14.0
+ENV NGX_VER 1.16.0
 
 ENV WORKDIR /src
 ENV NGX_SRC_DIR ${WORKDIR}/nginx-${NGX_VER}
