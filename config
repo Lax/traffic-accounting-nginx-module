@@ -46,8 +46,7 @@ fi
 if [ $STREAM != NO ]
 then
     ngx_module_type=STREAM
-    if [ "$ngx_module_name" == "ngx_http_accounting_module" ]
-    then
+    if test -n "$ngx_module_name"; then
       ngx_module_name="ngx_http_accounting_module ngx_stream_accounting_module"
     else
       ngx_module_name="ngx_stream_accounting_module"
