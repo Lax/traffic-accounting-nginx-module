@@ -12,5 +12,47 @@ TRAFFIC_ACCOUNTING_SRCS=" \
     $ngx_addon_dir/src/ngx_traffic_accounting_statuses.c \
     "
 
-. $ngx_addon_dir/ngx_http_accounting_module
-#. $ngx_addon_dir/ngx_stream_accounting_module
+HTTP_ACCOUNTING_DEPS=" \
+    $ngx_addon_dir/src/http/ngx_http_accounting_module.h \
+    "
+HTTP_ACCOUNTING_SRCS=" \
+    $ngx_addon_dir/src/http/ngx_http_accounting_module.c \
+    $ngx_addon_dir/src/http/ngx_http_accounting_statuses.c \
+    "
+
+STREAM_ACCOUNTING_DEPS=" \
+    $ngx_addon_dir/src/stream/ngx_stream_accounting_module.h \
+    "
+STREAM_ACCOUNTING_SRCS=" \
+    $ngx_addon_dir/src/stream/ngx_stream_accounting_module.c \
+    $ngx_addon_dir/src/stream/ngx_stream_accounting_statuses.c \
+    "
+
+ngx_module_type=
+ngx_module_name=
+ngx_module_incs=$ngx_addon_dir
+ngx_module_deps=$TRAFFIC_ACCOUNTING_DEPS
+ngx_module_srcs=$TRAFFIC_ACCOUNTING_SRCS
+ngx_module_libs=
+
+if [ $HTTP != NO ]
+then
+    ngx_module_type=HTTP
+    ngx_module_name="ngx_http_accounting_module"
+    ngx_module_deps="$ngx_module_deps $HTTP_ACCOUNTING_DEPS"
+    ngx_module_srcs="$ngx_module_srcs $HTTP_ACCOUNTING_SRCS"
+fi
+
+if [ $STREAM != NO ]
+then
+    ngx_module_type=STREAM
+    if test -n "$ngx_module_name"; then
+      ngx_module_name="ngx_http_accounting_module ngx_stream_accounting_module"
+    else
+      ngx_module_name="ngx_stream_accounting_module"
+    fi
+    ngx_module_deps="$ngx_module_deps $STREAM_ACCOUNTING_DEPS"
+    ngx_module_srcs="$ngx_module_srcs $STREAM_ACCOUNTING_SRCS"
+fi
+
+. auto/module
