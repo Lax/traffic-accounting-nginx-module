@@ -4,8 +4,8 @@ Monitor the incoming and outgoing traffic metrics in realtime for `NGINX`.
 
 **Now accounting module supports both HTTP and STREAM subsystems**
 
-Realtime traffic and status code monitor solution for NGINX,
-need less memory and cpu than realtime log analyzing solutions.
+A realtime traffic and status code monitor solution for NGINX,
+which needs less memory and cpu than other realtime log analyzing solutions.
 Useful for traffic accounting based on NGINX config logic (by location / server / user-defined-variables).
 
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Ftraffic-accounting-nginx-module.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Ftraffic-accounting-nginx-module?ref=badge_shield)
@@ -16,16 +16,16 @@ Realtime log analysis solutions,
 which requires multiple machines for storage and analysis,
 are too heavy for application monitoring.
 
-An cost-effective solution is needed to monitor the traffic metrics/status of application requests.
-That solution should be accurate, sensitive, robust, light weight enough, and not affected by traffic peaks.
+An cost-effective solution is in need to monitor the traffic metrics/status of application requests.
+This solution should be accurate, sensitive, robust, light weight enough, and not affected by traffic peaks.
 
 ## How it works?
 
-The module keeps in its context a list of **metrics** identified by `accounting_id`.
+This module keeps a list of **metrics** identified by `accounting_id` in its context.
 
 When a new **request** hits the server, the module will try to find its `accounting_id`, calculate statistics, and **aggregate** them into the corresponding metrics by `accounting_id`.
 
-For every period (defined by `interval`), a timer event is triggered, those metrics are rotated and exported to log files or sent to remote log servers.
+For each time period (defined by `interval`), a timer event is triggered, those metrics are rotated and exported to log files or sent to remote log servers.
 
 
 ---
@@ -39,7 +39,6 @@ Add following lines at the beginning of `nginx.conf`:
 
 ```
 load_module modules/ngx_http_accounting_module.so;
-load_module modules/ngx_stream_accounting_module.so;
 ```
 
 Reload nginx config with `nginx -s reload`. *Done!*
@@ -226,10 +225,20 @@ git clone https://github.com/Lax/traffic-accounting-nginx-module.git
 
 # to build as `static` module
 ./configure --prefix=/opt/nginx --with-stream --add-module=traffic-accounting-nginx-module
+make && make install
+
+
 # to build as `dynamic` module
+# both HTTP and STREAM module, target module file name is ngx_http_accounting_module.so
 ./configure --prefix=/opt/nginx --with-stream --add-dynamic-module=traffic-accounting-nginx-module
 
-make && make install
+# only HTTP module, target module file name is ngx_http_accounting_module.so
+#./configure --prefix=/opt/nginx --add-dynamic-module=traffic-accounting-nginx-module
+
+# only STREAM module, target module file name is ngx_stream_accounting_module.so
+#./configure --prefix=/opt/nginx --without-http --add-dynamic-module=traffic-accounting-nginx-module
+
+make modules
 ```
 
 ### Step 2 (dynamic module only)
@@ -238,7 +247,9 @@ Add the following lines at the beginning of `nginx.conf`:
 
 ```
 load_module modules/ngx_http_accounting_module.so;
-load_module modules/ngx_stream_accounting_module.so;
+
+# for STREAM only build
+#load_module modules/ngx_stream_accounting_module.so;
 ```
 
 ### Step 3
