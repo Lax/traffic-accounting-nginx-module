@@ -228,13 +228,14 @@ git clone https://github.com/Lax/traffic-accounting-nginx-module.git
 make && make install
 
 
-# to build as `dynamic` module, both HTTP and STREAM module, target module file name is ngx_http_accounting_module.so
+# to build as `dynamic` module
+# both HTTP and STREAM module, target module file name is ngx_http_accounting_module.so
 ./configure --prefix=/opt/nginx --with-stream --add-dynamic-module=traffic-accounting-nginx-module
 
-## to build only HTTP module, target module file name is ngx_http_accounting_module.so
+# only HTTP module, target module file name is ngx_http_accounting_module.so
 #./configure --prefix=/opt/nginx --add-dynamic-module=traffic-accounting-nginx-module
 
-## to build only STREAM module, target module file name is ngx_stream_accounting_module.so
+# only STREAM module, target module file name is ngx_stream_accounting_module.so
 #./configure --prefix=/opt/nginx --without-http --add-dynamic-module=traffic-accounting-nginx-module
 
 make modules
