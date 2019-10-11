@@ -275,7 +275,7 @@ stream {
 ## Visualization
 
 Visualization with `Kibana` or `Grafana` is easy.
-See [samples/elk/](samples/elk/) for examples.
+See [samples/](samples/) for examples.
 
 ---
 
