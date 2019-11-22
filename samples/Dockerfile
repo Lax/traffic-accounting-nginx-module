@@ -1,7 +1,6 @@
-FROM centos as builder
+FROM ubuntu as builder
 
-RUN yum install gcc make pcre-devel zlib-devel openssl-devel -y \
-    && yum clean all
+RUN apt update && apt install -y curl libpcre3-dev zlib1g-dev build-essential
 
 ENV PREFIX /opt/nginx
 ENV NGX_VER 1.16.0
@@ -27,7 +26,7 @@ RUN ./configure --prefix=${PREFIX} \
     && make -s && make -s install
 
 
-FROM centos
+FROM ubuntu
 
 ENV PREFIX /opt/nginx
 ENV CONFIG_VER $(date)
