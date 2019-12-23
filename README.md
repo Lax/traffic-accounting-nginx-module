@@ -9,6 +9,7 @@ which needs less memory and cpu than other realtime log analyzing solutions.
 Useful for traffic accounting based on NGINX config logic (by location / server / user-defined-variables).
 
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2FLax%2Ftraffic-accounting-nginx-module.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2FLax%2Ftraffic-accounting-nginx-module?ref=badge_shield)
+[![Financial Contributors on Open Collective](https://opencollective.com/traffic-acctiong-nginx-module/all/badge.svg?label=financial+contributors)](https://opencollective.com/traffic-acctiong-nginx-module) 
 
 ## Why?
 
@@ -299,6 +300,36 @@ See [samples/](samples/) for examples.
 Liu Lantao [Github@Lax](https://github.com/Lax)
 
 [Contributors](https://github.com/Lax/traffic-accounting-nginx-module/graphs/contributors)
+
+## Contributors
+
+### Code Contributors
+
+This project exists thanks to all the people who contribute. [[Contribute](CONTRIBUTING.md)].
+<a href="https://github.com/Lax/traffic-accounting-nginx-module/graphs/contributors"><img src="https://opencollective.com/traffic-acctiong-nginx-module/contributors.svg?width=890&button=false" /></a>
+
+### Financial Contributors
+
+Become a financial contributor and help us sustain our community. [[Contribute](https://opencollective.com/traffic-acctiong-nginx-module/contribute)]
+
+#### Individuals
+
+<a href="https://opencollective.com/traffic-acctiong-nginx-module"><img src="https://opencollective.com/traffic-acctiong-nginx-module/individuals.svg?width=890"></a>
+
+#### Organizations
+
+Support this project with your organization. Your logo will show up here with a link to your website. [[Contribute](https://opencollective.com/traffic-acctiong-nginx-module/contribute)]
+
+<a href="https://opencollective.com/traffic-acctiong-nginx-module/organization/0/website"><img src="https://opencollective.com/traffic-acctiong-nginx-module/organization/0/avatar.svg"></a>
+<a href="https://opencollective.com/traffic-acctiong-nginx-module/organization/1/website"><img src="https://opencollective.com/traffic-acctiong-nginx-module/organization/1/avatar.svg"></a>
+<a href="https://opencollective.com/traffic-acctiong-nginx-module/organization/2/website"><img src="https://opencollective.com/traffic-acctiong-nginx-module/organization/2/avatar.svg"></a>
+<a href="https://opencollective.com/traffic-acctiong-nginx-module/organization/3/website"><img src="https://opencollective.com/traffic-acctiong-nginx-module/organization/3/avatar.svg"></a>
+<a href="https://opencollective.com/traffic-acctiong-nginx-module/organization/4/website"><img src="https://opencollective.com/traffic-acctiong-nginx-module/organization/4/avatar.svg"></a>
+<a href="https://opencollective.com/traffic-acctiong-nginx-module/organization/5/website"><img src="https://opencollective.com/traffic-acctiong-nginx-module/organization/5/avatar.svg"></a>
+<a href="https://opencollective.com/traffic-acctiong-nginx-module/organization/6/website"><img src="https://opencollective.com/traffic-acctiong-nginx-module/organization/6/avatar.svg"></a>
+<a href="https://opencollective.com/traffic-acctiong-nginx-module/organization/7/website"><img src="https://opencollective.com/traffic-acctiong-nginx-module/organization/7/avatar.svg"></a>
+<a href="https://opencollective.com/traffic-acctiong-nginx-module/organization/8/website"><img src="https://opencollective.com/traffic-acctiong-nginx-module/organization/8/avatar.svg"></a>
+<a href="https://opencollective.com/traffic-acctiong-nginx-module/organization/9/website"><img src="https://opencollective.com/traffic-acctiong-nginx-module/organization/9/avatar.svg"></a>
 
 # License
 
