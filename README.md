@@ -2,7 +2,7 @@
 
 Monitor the incoming and outgoing traffic metrics in realtime for `NGINX`.
 
-**Now accounting module supports both HTTP and STREAM subsystems**
+**Now accounting module supports both `HTTP` and `STREAM` subsystems**
 
 A realtime traffic and status code monitor solution for NGINX,
 which needs less memory and cpu than other realtime log analyzing solutions.
@@ -178,7 +178,7 @@ Version: 5.6+
 Min time interval: 1m
 ```
 
-Then import accounting dashboard from  `[samples/accounting-dashboard-grafana.json](samples/accounting-dashboard-grafana.json)`.
+Then import accounting dashboard from  [`samples/accounting-dashboard-grafana.json`](samples/accounting-dashboard-grafana.json).
 
 
 ## Metrics log format
