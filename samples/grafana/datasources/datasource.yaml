@@ -7,6 +7,6 @@ datasources:
     database: "ngx_accounting-*"
     url: http://elasticsearch:9200
     jsonData:
-      esVersion: 56
+      esVersion: "7.10.1"
       timeInterval: 1m
       timeField: "@timestamp"
