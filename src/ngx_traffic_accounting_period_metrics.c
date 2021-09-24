@@ -160,6 +160,7 @@ ngx_traffic_accounting_period_rbtree_iterate(ngx_traffic_accounting_period_t *pe
             ngx_rbtree_delete(rbtree, node);
             ngx_free(n->nr_status);
             ngx_free(n->nr_upstream_status);
+            ngx_free(n->name.data);
             ngx_free(n);
 
             goto done;
