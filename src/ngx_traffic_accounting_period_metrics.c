@@ -10,17 +10,17 @@
 static void ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp, ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
 
 ngx_int_t
-ngx_traffic_accounting_metrics_init(ngx_traffic_accounting_metrics_t *metrics, ngx_pool_t *pool, size_t len)
+ngx_traffic_accounting_metrics_init(ngx_traffic_accounting_metrics_t *metrics, size_t len, ngx_log_t *log)
 {
     if (metrics->nr_status == NULL) {
-        metrics->nr_status = ngx_pcalloc(pool, sizeof(ngx_uint_t) * len);
+        metrics->nr_status = ngx_calloc(sizeof(ngx_uint_t) * len, log);
 
         if (metrics->nr_status == NULL)
             return NGX_ERROR;
     }
 
     if (metrics->nr_upstream_status == NULL) {
-        metrics->nr_upstream_status = ngx_pcalloc(pool, sizeof(ngx_uint_t) * len);
+        metrics->nr_upstream_status = ngx_calloc(sizeof(ngx_uint_t) * len, log);
 
         if (metrics->nr_upstream_status == NULL)
             return NGX_ERROR;
@@ -39,14 +39,14 @@ ngx_traffic_accounting_period_init(ngx_traffic_accounting_period_t *period)
 }
 
 void
-ngx_traffic_accounting_period_insert(ngx_traffic_accounting_period_t *period, ngx_str_t *name)
+ngx_traffic_accounting_period_insert(ngx_traffic_accounting_period_t *period, ngx_str_t *name, ngx_log_t *log)
 {
     ngx_traffic_accounting_metrics_t   *metrics;
 
-    metrics = ngx_pcalloc(period->pool, sizeof(ngx_traffic_accounting_metrics_t));
+    metrics = ngx_calloc(sizeof(ngx_traffic_accounting_metrics_t), log);
 
     void *data;
-    data = ngx_pcalloc(period->pool, name->len+1);
+    data = ngx_calloc(name->len+1, log);
     ngx_memcpy(data, name->data, name->len);
 
     metrics->name.data = data;
@@ -82,7 +82,7 @@ void
 ngx_traffic_accounting_period_delete_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics)
 {
     ngx_rbtree_delete(&period->rbtree, &metrics->rbnode);
-    ngx_pfree(period->pool, metrics);
+    ngx_free(metrics);
 }
 
 ngx_traffic_accounting_metrics_t *
@@ -124,7 +124,7 @@ ngx_traffic_accounting_period_lookup_metrics(ngx_traffic_accounting_period_t *pe
 }
 
 ngx_traffic_accounting_metrics_t *
-ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *period, ngx_str_t *name)
+ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *period, ngx_str_t *name, ngx_log_t *log)
 {
     ngx_traffic_accounting_metrics_t   *n;
 
@@ -132,7 +132,7 @@ ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *per
     if (n != NULL)
         return n;
 
-    ngx_traffic_accounting_period_insert(period, name);
+    ngx_traffic_accounting_period_insert(period, name, log);
 
     return ngx_traffic_accounting_period_lookup_metrics(period, name);
 }
@@ -158,9 +158,10 @@ ngx_traffic_accounting_period_rbtree_iterate(ngx_traffic_accounting_period_t *pe
         if (rc == NGX_DONE) {
             /* NGX_DONE -> destroy node */
             ngx_rbtree_delete(rbtree, node);
-            ngx_pfree(period->pool, n->nr_status);
-            ngx_pfree(period->pool, n->nr_upstream_status);
-            ngx_pfree(period->pool, n);
+            ngx_free(n->nr_status);
+            ngx_free(n->nr_upstream_status);
+            ngx_free(n->name.data);
+            ngx_free(n);
 
             goto done;
         }

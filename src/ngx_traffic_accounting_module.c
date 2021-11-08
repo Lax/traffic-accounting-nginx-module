@@ -9,15 +9,14 @@
 
 
 ngx_int_t
-ngx_traffic_accounting_period_create(ngx_pool_t *pool, ngx_traffic_accounting_main_conf_t *amcf)
+ngx_traffic_accounting_period_create(ngx_traffic_accounting_main_conf_t *amcf)
 {
     ngx_traffic_accounting_period_t   *period;
 
-    period = ngx_pcalloc(pool, sizeof(ngx_traffic_accounting_period_t));
+    period = ngx_calloc(sizeof(ngx_traffic_accounting_period_t), amcf->log);
     if (period == NULL)
         return NGX_ERROR;
 
-    period->pool = pool;
     ngx_traffic_accounting_period_init(period);
 
     period->created_at = ngx_timeofday();
@@ -28,11 +27,11 @@ ngx_traffic_accounting_period_create(ngx_pool_t *pool, ngx_traffic_accounting_ma
 }
 
 ngx_int_t
-ngx_traffic_accounting_period_rotate(ngx_pool_t *pool, ngx_traffic_accounting_main_conf_t *amcf)
+ngx_traffic_accounting_period_rotate(ngx_traffic_accounting_main_conf_t *amcf)
 {
-    ngx_pfree(pool, amcf->previous);
+    ngx_free(amcf->previous);
 
     amcf->previous = amcf->current;
 
-    return ngx_traffic_accounting_period_create(pool, amcf);
+    return ngx_traffic_accounting_period_create(amcf);
 }

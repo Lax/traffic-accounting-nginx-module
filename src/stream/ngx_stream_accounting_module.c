@@ -136,7 +136,7 @@ ngx_stream_accounting_process_init(ngx_cycle_t *cycle)
     }
 
     if (amcf->current == NULL) {
-        if (ngx_traffic_accounting_period_create(cycle->pool, amcf) != NGX_OK)
+        if (ngx_traffic_accounting_period_create(amcf) != NGX_OK)
             return NGX_ERROR;
     }
 
@@ -203,7 +203,7 @@ worker_process_alarm_handler(ngx_event_t *ev)
 
     amcf = ngx_stream_cycle_get_module_main_conf(ngx_cycle, ngx_stream_accounting_module);
 
-    ngx_traffic_accounting_period_rotate(amcf->current->pool, amcf);
+    ngx_traffic_accounting_period_rotate(amcf);
     ngx_traffic_accounting_period_rbtree_iterate(amcf->previous,
                               worker_process_export_metrics,
                               amcf->previous->created_at,
@@ -240,10 +240,10 @@ ngx_stream_accounting_session_handler(ngx_stream_session_t *s)
 
     amcf = ngx_stream_get_module_main_conf(s, ngx_stream_accounting_module);
 
-    metrics = ngx_traffic_accounting_period_fetch_metrics(amcf->current, accounting_id);
+    metrics = ngx_traffic_accounting_period_fetch_metrics(amcf->current, accounting_id, amcf->log);
     if (metrics == NULL) { return NGX_ERROR; }
 
-    if (ngx_traffic_accounting_metrics_init(metrics, amcf->current->pool, ngx_stream_statuses_len) == NGX_ERROR)
+    if (ngx_traffic_accounting_metrics_init(metrics, ngx_stream_statuses_len, amcf->log) == NGX_ERROR)
         return NGX_ERROR;
 
     amcf->current->updated_at = ngx_timeofday();
