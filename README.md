@@ -170,15 +170,13 @@ docker-compose up -d
 
 Open Grafana (address: `http://localhost:3000`) in your browser.
 
-Create and configurate elasticsearch datasource with options:
-```
-Type: elasticsearch
-URL: http://elasticsearch:9200
-Version: 5.6+
-Min time interval: 1m
-```
+Login with `admin` / `admin`. The elasticsearch datasource and accounting dashboard are auto-provisioned.
 
-Then import accounting dashboard from  [`samples/accounting-dashboard-grafana.json`](samples/accounting-dashboard-grafana.json).
+To customize versions:
+
+```
+ELK_VERSION=8.19.15 NGX_VER=1.30.1 docker-compose up -d
+```
 
 
 ## Metrics log format
@@ -283,6 +281,9 @@ See [samples/](samples/) for examples.
 # Branches
 
 * master : main development branch.
+* next/v4 : next version development branch.
+* v3-freeze-20260520 : frozen snapshot of v3 codebase. works with nginx >= 1.9.0.
+* tag v3.0 : v3.0 release.
 * tag v0.1 or v2-freeze-20110526 : legacy release. works with nginx version(0.7.xx, 0.8.xx), nginx 0.9 is not tested. didn't work with nginx above 1.0.x.
 
 # Contributing

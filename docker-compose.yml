@@ -5,7 +5,7 @@ services:
     labels:
       com.example.service: "es"
       com.example.description: "For searching and indexing data"
-    image: elasticsearch
+    image: elasticsearch:${ELK_VERSION:-7.17.20}
     networks:
       - elk
     volumes:
@@ -19,7 +19,7 @@ services:
     labels:
       com.example.service: "logstash"
       com.example.description: "For logging data"
-    image: logstash
+    image: logstash:${ELK_VERSION:-7.17.20}
     networks:
       - elk
     volumes:
@@ -32,7 +32,7 @@ services:
     labels:
       com.example.service: "kibana"
       com.example.description: "Data visualisation and for log aggregation"
-    image: kibana
+    image: kibana:${ELK_VERSION:-7.17.20}
     networks:
       - elk
     ports:
@@ -63,6 +63,8 @@ services:
     build:
       context: .
       dockerfile: samples/Dockerfile
+      args:
+        NGX_VER: ${NGX_VER:-1.31.0}
     networks:
       - nginx
       - elk

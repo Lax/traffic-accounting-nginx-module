@@ -1,11 +1,10 @@
-FROM centos as builder
+FROM alpine:latest as builder
 
-RUN yum install gcc make pcre-devel zlib-devel openssl-devel -y \
-    && yum clean all
+RUN apk add --no-cache gcc make pcre-dev zlib-dev openssl-dev linux-headers musl-dev curl
+
+ARG NGX_VER=1.30.1
 
 ENV PREFIX /opt/nginx
-ENV NGX_VER 1.16.0
-
 ENV WORKDIR /src
 ENV NGX_SRC_DIR ${WORKDIR}/nginx-${NGX_VER}
 ENV NGX_URL http://nginx.org/download/nginx-${NGX_VER}.tar.gz
@@ -27,10 +26,11 @@ RUN ./configure --prefix=${PREFIX} \
     && make -s && make -s install
 
 
-FROM centos
+FROM alpine:latest
+
+RUN apk add --no-cache pcre zlib tzdata
 
 ENV PREFIX /opt/nginx
-ENV CONFIG_VER $(date)
 
 COPY --from=builder ${PREFIX} ${PREFIX}
 
@@ -40,7 +40,7 @@ RUN ln -sf /dev/stdout ${PREFIX}/logs/access.log \
     && ln -sf /dev/stderr ${PREFIX}/logs/http-accounting.log \
     && ln -sf /dev/stderr ${PREFIX}/logs/stream-accounting.log \
     && ln -sf /dev/stderr ${PREFIX}/logs/error.log \
-    && ln -sf ../usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+    && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
 ADD samples/nginx.conf ${PREFIX}/conf/nginx.conf
 ADD samples/http.conf ${PREFIX}/conf/http.conf
