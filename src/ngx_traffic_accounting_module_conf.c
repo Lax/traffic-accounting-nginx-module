@@ -190,19 +190,21 @@ ngx_traffic_accounting_get_accounting_id(void *entry, ngx_get_loc_conf_pt get_lo
 ngx_int_t
 ngx_traffic_accounting_check_reset(ngx_traffic_accounting_main_conf_t *amcf)
 {
-    time_t     now;
-    struct tm  tm;
+    ngx_time_t *tp;
+    time_t      now;
+    struct tm   tm;
 
     if (amcf->period_reset == NGX_TA_PERIOD_RESET_NONE) {
         return 0;
     }
 
-    now = ngx_timeofday()->sec;
+    tp = ngx_timeofday();
+    now = tp->sec;
     localtime_r(&now, &tm);
 
     switch (amcf->period_reset) {
     case NGX_TA_PERIOD_RESET_HOURLY:
-        if (tm.tm_hour != amcf->last_reset_day) {
+        if ((ngx_uint_t)tm.tm_hour != amcf->last_reset_day) {
             amcf->last_reset_day = tm.tm_hour;
             return 1;
         }
