@@ -1,6 +1,5 @@
 .git/
 .github/
-samples/
 *.swp
 .gitignore
 test/Dockerfile
