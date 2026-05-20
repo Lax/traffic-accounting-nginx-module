@@ -3,11 +3,25 @@ name: CI
 on: [push, pull_request]
 
 jobs:
-  test:
+  null-alloc-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build & run null-alloc test in Docker
+      - name: Run NULL-alloc safety test
         run: |
           docker build -f test/Dockerfile -t acc-test .
           docker run --rm acc-test
+
+  compile-and-load-test:
+    strategy:
+      matrix:
+        include:
+          - ngx_ver: "1.31.0"
+            label: mainline
+          - ngx_ver: "1.30.1"
+            label: stable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & test nginx ${{ matrix.label }}
+        run: test/nginx_build_test.sh ${{ matrix.ngx_ver }}
