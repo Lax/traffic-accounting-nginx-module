@@ -209,6 +209,45 @@ test_normal_alloc(void)
 }
 
 
+static int
+test_null_name_compare(void)
+{
+    printf("[Test 4] insert_value with NULL name.data → ... ");
+    fflush(stdout);
+
+    ngx_traffic_accounting_period_t   period;
+    ngx_log_t                         log;
+    u_char                            name_data[] = "AAAA";
+    ngx_str_t                         name = { 4, name_data };
+    ngx_traffic_accounting_metrics_t  *existing, *bad;
+
+    reset_mock();
+    fail_after = 0;
+
+    ngx_traffic_accounting_period_init(&period);
+
+    ngx_traffic_accounting_period_insert(&period, &name, &log);
+
+    existing = ngx_traffic_accounting_period_lookup_metrics(&period, &name);
+
+    bad = ngx_calloc(sizeof(ngx_traffic_accounting_metrics_t), &log);
+    bad->name.len = 4;
+    bad->rbnode.key = existing->rbnode.key;
+
+    crash_signo = 0;
+    if (sigsetjmp(crash_env, 1) == 0) {
+        ngx_rbtree_insert(&period.rbtree, &bad->rbnode);
+        printf("PASS  (no crash)\n");
+        n_pass++;
+        return 1;
+    } else {
+        printf("FAIL  (SIGSEGV/%d)\n", crash_signo);
+        n_fail++;
+        return 0;
+    }
+}
+
+
 /* ── Main ── */
 
 int
@@ -219,6 +258,7 @@ main(void)
     test_metrics_alloc_fails();
     test_data_alloc_fails();
     test_normal_alloc();
+    test_null_name_compare();
 
     printf("\n%d / %d passed\n", n_pass, n_pass + n_fail);
 

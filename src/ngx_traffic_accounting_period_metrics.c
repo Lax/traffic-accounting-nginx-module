@@ -201,6 +201,10 @@ ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp,
             p = (node->key < temp->key) ? &temp->left : &temp->right;
         } else if (n->name.len != t->name.len) {
             p = (n->name.len < t->name.len) ? &temp->left : &temp->right;
+        } else if (n->name.data == NULL) {
+            p = &temp->left;
+        } else if (t->name.data == NULL) {
+            p = &temp->right;
         } else {
             p = (ngx_memcmp(n->name.data, t->name.data, n->name.len) < 0)
                  ? &temp->left : &temp->right;
