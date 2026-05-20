@@ -38,21 +38,30 @@ ngx_traffic_accounting_period_init(ngx_traffic_accounting_period_t *period)
     return NGX_OK;
 }
 
-void
+ngx_int_t
 ngx_traffic_accounting_period_insert(ngx_traffic_accounting_period_t *period, ngx_str_t *name, ngx_log_t *log)
 {
     ngx_traffic_accounting_metrics_t   *metrics;
+    void                               *data;
 
     metrics = ngx_calloc(sizeof(ngx_traffic_accounting_metrics_t), log);
+    if (metrics == NULL) {
+        return NGX_ERROR;
+    }
 
-    void *data;
-    data = ngx_calloc(name->len+1, log);
+    data = ngx_calloc(name->len + 1, log);
+    if (data == NULL) {
+        ngx_free(metrics);
+        return NGX_ERROR;
+    }
     ngx_memcpy(data, name->data, name->len);
 
     metrics->name.data = data;
     metrics->name.len = name->len;
 
     ngx_traffic_accounting_period_insert_metrics(period, metrics);
+
+    return NGX_OK;
 }
 
 void
@@ -132,7 +141,9 @@ ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *per
     if (n != NULL)
         return n;
 
-    ngx_traffic_accounting_period_insert(period, name, log);
+    if (ngx_traffic_accounting_period_insert(period, name, log) != NGX_OK) {
+        return NULL;
+    }
 
     return ngx_traffic_accounting_period_lookup_metrics(period, name);
 }
