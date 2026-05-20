@@ -1,0 +1,13 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build & run null-alloc test in Docker
+        run: |
+          docker build -f test/Dockerfile -t acc-test .
+          docker run --rm acc-test
