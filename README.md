@@ -150,6 +150,25 @@ accounting_perturb
 
 Randomly staggers the reporting interval by 20% from the usual time.
 
+accounting_period_reset
+-------------------------
+**syntax:** *accounting_period_reset none | hourly | daily | weekly | monthly*
+
+**default:** *accounting_period_reset none*
+
+**context:** *http, stream*
+
+Resets all accumulated metrics counters at configured calendar boundary.
+
+When set to a value other than `none`, the module will clear all metrics
+periodically at the start of each hour / day / week / month.
+This is useful for tracking high-level usage quotas (e.g. monthly bandwidth).
+
+`hourly`  - clears metrics at the start of each hour.
+`daily`   - clears metrics at the start of each day (midnight).
+`weekly`  - clears metrics on Monday at midnight.
+`monthly` - clears metrics on the 1st day of each month at midnight.
+
 # Usage
 
 This module can be configured to writes metrics to local file, remote log server or local syslog device.

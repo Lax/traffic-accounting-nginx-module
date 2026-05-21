@@ -7,6 +7,8 @@
 #include "ngx_traffic_accounting.h"
 #include "ngx_traffic_accounting_module.h"
 
+#include <time.h>
+
 
 void *
 ngx_traffic_accounting_create_main_conf(ngx_conf_t *cf)
@@ -17,9 +19,11 @@ ngx_traffic_accounting_create_main_conf(ngx_conf_t *cf)
     if (amcf == NULL)
         return NULL;
 
-    amcf->enable   = NGX_CONF_UNSET;
-    amcf->interval = NGX_CONF_UNSET;
-    amcf->perturb  = NGX_CONF_UNSET;
+    amcf->enable       = NGX_CONF_UNSET;
+    amcf->interval     = NGX_CONF_UNSET;
+    amcf->perturb      = NGX_CONF_UNSET;
+    amcf->period_reset = NGX_TA_PERIOD_RESET_NONE;
+    amcf->last_reset_day = 0;
 
     return amcf;
 }
@@ -87,6 +91,36 @@ ngx_traffic_accounting_set_log(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 char *
+ngx_traffic_accounting_set_period_reset(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_traffic_accounting_main_conf_t   *amcf = conf;
+    ngx_str_t                            *value;
+
+    value = cf->args->elts;
+
+    if (ngx_strcmp(value[1].data, "none") == 0) {
+        amcf->period_reset = NGX_TA_PERIOD_RESET_NONE;
+    } else if (ngx_strcmp(value[1].data, "hourly") == 0) {
+        amcf->period_reset = NGX_TA_PERIOD_RESET_HOURLY;
+    } else if (ngx_strcmp(value[1].data, "daily") == 0) {
+        amcf->period_reset = NGX_TA_PERIOD_RESET_DAILY;
+    } else if (ngx_strcmp(value[1].data, "weekly") == 0) {
+        amcf->period_reset = NGX_TA_PERIOD_RESET_WEEKLY;
+    } else if (ngx_strcmp(value[1].data, "monthly") == 0) {
+        amcf->period_reset = NGX_TA_PERIOD_RESET_MONTHLY;
+    } else {
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                           "invalid value \"%V\", must be: "
+                           "none | hourly | daily | weekly | monthly",
+                           &value[1]);
+        return NGX_CONF_ERROR;
+    }
+
+    return NGX_CONF_OK;
+}
+
+
+char *
 ngx_traffic_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf,
     ngx_get_variable_index_pt get_variable_index)
 {
@@ -150,4 +184,54 @@ ngx_traffic_accounting_get_accounting_id(void *entry, ngx_get_loc_conf_pt get_lo
     }
 
     return &alcf->accounting_id;
+}
+
+
+ngx_int_t
+ngx_traffic_accounting_check_reset(ngx_traffic_accounting_main_conf_t *amcf)
+{
+    ngx_time_t *tp;
+    time_t      now;
+    struct tm   tm;
+
+    if (amcf->period_reset == NGX_TA_PERIOD_RESET_NONE) {
+        return 0;
+    }
+
+    tp = ngx_timeofday();
+    now = tp->sec;
+    localtime_r(&now, &tm);
+
+    switch (amcf->period_reset) {
+    case NGX_TA_PERIOD_RESET_HOURLY:
+        if ((ngx_uint_t)tm.tm_hour != amcf->last_reset_day) {
+            amcf->last_reset_day = tm.tm_hour;
+            return 1;
+        }
+        break;
+    case NGX_TA_PERIOD_RESET_DAILY:
+        if ((ngx_uint_t)tm.tm_mday != amcf->last_reset_day) {
+            amcf->last_reset_day = tm.tm_mday;
+            return 1;
+        }
+        break;
+    case NGX_TA_PERIOD_RESET_WEEKLY:
+        if (tm.tm_wday == 1
+            && (ngx_uint_t)tm.tm_yday != amcf->last_reset_day)
+        {
+            amcf->last_reset_day = tm.tm_yday;
+            return 1;
+        }
+        break;
+    case NGX_TA_PERIOD_RESET_MONTHLY:
+        if ((ngx_uint_t)tm.tm_mon != amcf->last_reset_day) {
+            amcf->last_reset_day = tm.tm_mon;
+            return 1;
+        }
+        break;
+    default:
+        break;
+    }
+
+    return 0;
 }

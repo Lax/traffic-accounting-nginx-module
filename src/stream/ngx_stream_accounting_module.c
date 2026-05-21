@@ -47,6 +47,13 @@ static ngx_command_t  ngx_stream_accounting_commands[] = {
       offsetof(ngx_stream_accounting_main_conf_t, perturb),
       NULL},
 
+    { ngx_string("accounting_period_reset"),
+      NGX_STREAM_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_traffic_accounting_set_period_reset,
+      NGX_STREAM_MAIN_CONF_OFFSET,
+      0,
+      NULL},
+
     { ngx_string("accounting_log"),
       NGX_STREAM_MAIN_CONF|NGX_CONF_1MORE,
       ngx_traffic_accounting_set_log,
@@ -208,6 +215,10 @@ worker_process_alarm_handler(ngx_event_t *ev)
                               worker_process_export_metrics,
                               amcf->previous->created_at,
                               amcf->previous->updated_at );
+
+    if (ngx_traffic_accounting_check_reset(amcf)) {
+        ngx_traffic_accounting_period_clear(amcf->current);
+    }
 
     if (ngx_exiting || ev == NULL)
         return;
