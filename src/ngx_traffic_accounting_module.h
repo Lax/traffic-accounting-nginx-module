@@ -45,6 +45,7 @@ typedef struct {
 typedef struct {
     ngx_str_t       accounting_id;
     ngx_int_t       index;
+    ngx_flag_t      skip;
 } ngx_traffic_accounting_loc_conf_t;
 
 void * ngx_traffic_accounting_create_main_conf(ngx_conf_t *cf);
