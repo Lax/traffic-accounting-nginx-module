@@ -170,6 +170,9 @@ ngx_stream_accounting_process_init(ngx_cycle_t *cycle)
 
     if (amcf->shm_zone != NULL) {
         amcf->shm_head = amcf->shm_zone->data;
+        if (amcf->shm_head == NULL) {
+            return NGX_ERROR;
+        }
         amcf->fetch_metrics = ngx_stream_shm_fetch_metrics;
 
         ngx_traffic_accounting_shm_worker_join(amcf->shm_head);
@@ -223,6 +226,7 @@ ngx_stream_accounting_process_exit(ngx_cycle_t *cycle)
                       "pid:%i|stop stream traffic accounting", ngx_getpid());
     } else {
         syslog(LOG_INFO, "pid:%i|stop stream traffic accounting", ngx_getpid());
+        closelog();
     }
 }
 
@@ -422,8 +426,11 @@ ngx_stream_accounting_session_handler(ngx_stream_session_t *s)
     ngx_msec_int_t                 ms = 0;
     ngx_stream_upstream_state_t   *state;
 
-    if (ngx_stream_accounting_get_srv_conf(s)->skip) {
-        return NGX_DECLINED;
+    {
+        ngx_stream_accounting_loc_conf_t *alcf = ngx_stream_accounting_get_srv_conf(s);
+        if (alcf == NULL || alcf->skip) {
+            return NGX_DECLINED;
+        }
     }
 
     accounting_id = ngx_stream_accounting_get_accounting_id(s);
@@ -446,7 +453,9 @@ ngx_stream_accounting_session_handler(ngx_stream_session_t *s)
 
     metrics->nr_entries += 1;
     metrics->bytes_in += s->received;
-    metrics->bytes_out += s->connection->sent;
+    if (s->connection) {
+        metrics->bytes_out += s->connection->sent;
+    }
 
     if (s->status) {
         status = s->status;
@@ -502,8 +511,12 @@ ngx_stream_shm_fetch_metrics(void *context, ngx_str_t *name)
     ngx_traffic_accounting_main_conf_t *amcf = context;
     ngx_traffic_accounting_metrics_t   *metrics;
 
+    if (amcf->shm_head == NULL || amcf->shm_head->current == NULL) {
+        return NULL;
+    }
+
     metrics = ngx_traffic_accounting_shm_fetch_metrics(amcf->shm_head->current,
-                                                        name, amcf->log);
+                                                         name, amcf->log);
     if (metrics != NULL) {
         amcf->shm_head->current->updated_at_sec = ngx_time();
     }
