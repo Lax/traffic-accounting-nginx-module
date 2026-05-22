@@ -55,6 +55,13 @@ static ngx_command_t  ngx_stream_accounting_commands[] = {
       offsetof(ngx_stream_accounting_main_conf_t, perturb),
       NULL},
 
+    { ngx_string("accounting_period_reset"),
+      NGX_STREAM_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_traffic_accounting_set_period_reset,
+      NGX_STREAM_MAIN_CONF_OFFSET,
+      0,
+      NULL},
+
     { ngx_string("accounting_log"),
       NGX_STREAM_MAIN_CONF|NGX_CONF_1MORE,
       ngx_traffic_accounting_set_log,
@@ -303,6 +310,20 @@ worker_process_alarm_handler(ngx_event_t *ev)
                                   worker_process_export_metrics,
                                   (void *) period,
                                   NULL );
+    }
+
+    if (ngx_traffic_accounting_check_reset(amcf)) {
+        if (amcf->shm_zone != NULL) {
+            shpool = (ngx_slab_pool_t *) amcf->shm_zone->shm.addr;
+            ngx_shmtx_lock(&shpool->mutex);
+            ngx_traffic_accounting_shm_period_destroy(amcf->shm_zone,
+                                                       amcf->shm_head->current);
+            ngx_traffic_accounting_shm_period_create(amcf->shm_zone,
+                                                      amcf->shm_head);
+            ngx_shmtx_unlock(&shpool->mutex);
+        } else {
+            ngx_traffic_accounting_period_clear(amcf->current);
+        }
     }
 
     if (ngx_exiting || ev == NULL)

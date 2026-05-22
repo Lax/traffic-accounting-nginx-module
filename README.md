@@ -150,21 +150,26 @@ accounting_perturb
 
 Randomly staggers the reporting interval by 20% from the usual time.
 
-accounting_zone
-------------------------
-**syntax:** *accounting_zone \<name> \<size>*
+accounting_period_reset
+-------------------------
+**syntax:** *accounting_period_reset none | hourly | daily | weekly | monthly*
 
-**default:** *-*
+**default:** *accounting_period_reset none*
 
 **context:** *http, stream*
 
-Allocates a shared memory zone to aggregate metrics across all worker processes.
-When configured, each period produces a single combined log entry per `accounting_id`
-(instead of one entry per worker process per `accounting_id`).
+Resets all accumulated metrics counters at configured calendar boundary.
 
-The log format changes from `pid:N` to `workers:N` when a zone is configured,
-where `N` is the number of active worker processes.
+When set to a value other than `none`, the module will clear all metrics
+periodically at the start of each hour / day / week / month.
+This is useful for tracking high-level usage quotas (e.g. monthly bandwidth).
 
+`hourly`  - clears metrics at the start of each hour.
+`daily`   - clears metrics at the start of each day (midnight).
+`weekly`  - clears metrics on Monday at midnight.
+`monthly` - clears metrics on the 1st day of each month at midnight.
+
+accounting_zone
 # Usage
 
 This module can be configured to writes metrics to local file, remote log server or local syslog device.

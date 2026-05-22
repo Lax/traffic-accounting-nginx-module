@@ -173,6 +173,27 @@ done:
     return NGX_OK;
 }
 
+
+void
+ngx_traffic_accounting_period_clear(ngx_traffic_accounting_period_t *period)
+{
+    ngx_rbtree_t                       *rbtree;
+    ngx_rbtree_node_t                  *node, *sentinel;
+    ngx_traffic_accounting_metrics_t   *m;
+
+    rbtree = &period->rbtree;
+    sentinel = rbtree->sentinel;
+
+    while ((node = rbtree->root) != sentinel) {
+        m = (ngx_traffic_accounting_metrics_t *) node;
+
+        ngx_rbtree_delete(rbtree, node);
+        ngx_free(m->name.data);
+        ngx_free(m);
+    }
+}
+
+
 static void
 ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp,
     ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel)
