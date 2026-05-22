@@ -49,6 +49,7 @@ ngx_traffic_accounting_create_loc_conf(ngx_conf_t *cf)
     if(conf == NULL) { return NULL; }
 
     conf->index = NGX_CONF_UNSET;
+    conf->skip  = NGX_CONF_UNSET;
 
     return conf;
 }
@@ -63,6 +64,8 @@ ngx_traffic_accounting_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
         ngx_conf_merge_str_value(conf->accounting_id, prev->accounting_id, "default");
         conf->index = prev->index;
     }
+
+    ngx_conf_merge_value(conf->skip, prev->skip, 0);
 
     return NGX_CONF_OK;
 }

@@ -184,6 +184,29 @@ When configured, each period produces a single combined log entry per `accountin
 The log format changes from `pid:N` to `workers:N` when a zone is configured,
 where `N` is the number of active worker processes.
 
+accounting_skip
+------------------------
+**syntax:** *accounting_skip on | off*
+
+**default:** *accounting_skip off*
+
+**context:** *http, stream, server, location, if in location*
+
+When set to `on`, skips traffic accounting for the current request/session.
+Useful for excluding health checks, bots, or cached responses:
+
+```nginx
+# Skip accounting for cache hits
+if ($upstream_cache_status = "HIT") {
+    accounting_skip on;
+}
+
+# Skip accounting for search engine bots
+if ($http_user_agent ~* '(Googlebot|Bingbot)') {
+    accounting_skip on;
+}
+```
+
 # Usage
 
 This module can be configured to writes metrics to local file, remote log server or local syslog device.

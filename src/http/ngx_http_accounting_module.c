@@ -24,6 +24,7 @@ static char *ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t
 static char *ngx_http_accounting_set_zone(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 static ngx_int_t ngx_http_accounting_request_handler(ngx_http_request_t *r);
+static ngx_http_accounting_loc_conf_t *ngx_http_accounting_get_loc_conf(void *entry);
 static ngx_str_t *ngx_http_accounting_get_accounting_id(ngx_http_request_t *r);
 
 static ngx_traffic_accounting_metrics_t *
@@ -75,6 +76,14 @@ static ngx_command_t  ngx_http_accounting_commands[] = {
       ngx_http_accounting_set_accounting_id,
       NGX_HTTP_LOC_CONF_OFFSET,
       0,
+      NULL},
+
+    { ngx_string("accounting_skip"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF
+                        |NGX_CONF_TAKE1,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_traffic_accounting_loc_conf_t, skip),
       NULL},
 
     { ngx_string("accounting_zone"),
@@ -370,6 +379,10 @@ ngx_http_accounting_request_handler(ngx_http_request_t *r)
     ngx_time_t                  *tp = ngx_timeofday();
     ngx_msec_int_t               ms = 0;
     ngx_http_upstream_state_t   *state;
+
+    if (ngx_http_accounting_get_loc_conf(r)->skip) {
+        return NGX_DECLINED;
+    }
 
     accounting_id = ngx_http_accounting_get_accounting_id(r);
     if (accounting_id == NULL) { return NGX_ERROR; }
