@@ -23,8 +23,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: cache-acc
+        with:
+          path: /tmp/nginx-acc-image.tar
+          key: nginx-acc-${{ matrix.ngx_ver }}-${{ hashFiles('src/**', 'config', 'test/Dockerfile.nginx', 'samples/*.conf') }}
+      - name: Load cached image
+        if: steps.cache-acc.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/nginx-acc-image.tar
       - name: Build & test nginx ${{ matrix.label }}
+        if: steps.cache-acc.outputs.cache-hit != 'true'
         run: test/nginx_build_test.sh ${{ matrix.ngx_ver }}
+      - name: Test nginx ${{ matrix.label }} (cached)
+        if: steps.cache-acc.outputs.cache-hit == 'true'
+        run: SKIP_BUILD=1 test/nginx_build_test.sh ${{ matrix.ngx_ver }}
+      - name: Save image to cache
+        if: steps.cache-acc.outputs.cache-hit != 'true'
+        run: docker save nginx-acc-test:${{ matrix.ngx_ver }} -o /tmp/nginx-acc-image.tar
 
   compile-and-load-test-zone:
     strategy:
@@ -37,5 +52,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: cache-zone
+        with:
+          path: /tmp/nginx-zone-image.tar
+          key: nginx-zone-${{ matrix.ngx_ver }}-${{ hashFiles('src/**', 'config', 'test/Dockerfile.nginx', 'test/zone-*.conf') }}
+      - name: Load cached image
+        if: steps.cache-zone.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/nginx-zone-image.tar
       - name: Build & test nginx ${{ matrix.label }} (zone)
+        if: steps.cache-zone.outputs.cache-hit != 'true'
         run: test/nginx_build_test_zone.sh ${{ matrix.ngx_ver }}
+      - name: Test nginx ${{ matrix.label }} (zone, cached)
+        if: steps.cache-zone.outputs.cache-hit == 'true'
+        run: SKIP_BUILD=1 test/nginx_build_test_zone.sh ${{ matrix.ngx_ver }}
+      - name: Save image to cache
+        if: steps.cache-zone.outputs.cache-hit != 'true'
+        run: docker save nginx-acc-zone-test:${{ matrix.ngx_ver }} -o /tmp/nginx-zone-image.tar

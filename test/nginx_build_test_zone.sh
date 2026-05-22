@@ -7,6 +7,7 @@ set -e
 NGX_VER="${1:-1.30.1}"
 IMAGE="nginx-acc-zone-test:${NGX_VER}"
 
+if [ "${SKIP_BUILD:-0}" != "1" ]; then
 echo "=== [1/4] Build nginx ${NGX_VER} base ==="
 BASE_IMAGE="${IMAGE}-base"
 docker build -f test/Dockerfile.nginx \
@@ -21,6 +22,7 @@ COPY test/zone-stream.conf /opt/nginx/conf/stream.conf
 EOF
 docker build -f /tmp/Dockerfile.zone-ovr -t "${IMAGE}" .
 rm -f /tmp/Dockerfile.zone-ovr
+fi
 
 echo "=== [3/4] Config validation ==="
 docker run --rm --entrypoint /opt/nginx/sbin/nginx "${IMAGE}" -t
