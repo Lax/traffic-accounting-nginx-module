@@ -364,7 +364,7 @@ ngx_http_accounting_request_handler(ngx_http_request_t *r)
     ngx_str_t                          *accounting_id;
     ngx_traffic_accounting_metrics_t   *metrics;
     ngx_http_accounting_main_conf_t    *amcf;
-    ngx_slab_pool_t                    *shpool;
+    ngx_slab_pool_t                    *shpool = NULL;
 
     ngx_uint_t                   status, i;
     ngx_time_t                  *tp = ngx_timeofday();
