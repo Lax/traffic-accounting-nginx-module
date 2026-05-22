@@ -332,7 +332,10 @@ worker_process_alarm_handler(ngx_event_t *ev)
         ngx_shmtx_unlock(&shpool->mutex);
 
     } else {
-        ngx_traffic_accounting_period_rotate(amcf);
+        /* per-process path */
+        if (ngx_traffic_accounting_period_rotate(amcf) != NGX_OK) {
+            goto done;
+        }
 
         period = amcf->previous;
 
@@ -346,6 +349,7 @@ worker_process_alarm_handler(ngx_event_t *ev)
         }
     }
 
+done:
     if (ngx_exiting || ev == NULL)
         return;
 

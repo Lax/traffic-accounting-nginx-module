@@ -338,7 +338,9 @@ worker_process_alarm_handler(ngx_event_t *ev)
 
     } else {
         /* per-process path */
-        ngx_traffic_accounting_period_rotate(amcf);
+        if (ngx_traffic_accounting_period_rotate(amcf) != NGX_OK) {
+            goto done;
+        }
 
         period = amcf->previous;
 
@@ -351,6 +353,8 @@ worker_process_alarm_handler(ngx_event_t *ev)
             ngx_traffic_accounting_period_clear(amcf->current);
         }
     }
+
+done:
 
     if (ngx_exiting || ev == NULL)
         return;

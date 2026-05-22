@@ -30,9 +30,18 @@ ngx_traffic_accounting_period_create(ngx_traffic_accounting_main_conf_t *amcf)
 ngx_int_t
 ngx_traffic_accounting_period_rotate(ngx_traffic_accounting_main_conf_t *amcf)
 {
-    ngx_free(amcf->previous);
+    ngx_traffic_accounting_period_t *old_previous = amcf->previous;
 
     amcf->previous = amcf->current;
+    amcf->current = NULL;
 
-    return ngx_traffic_accounting_period_create(amcf);
+    if (ngx_traffic_accounting_period_create(amcf) != NGX_OK) {
+        amcf->current = amcf->previous;
+        amcf->previous = old_previous;
+        return NGX_ERROR;
+    }
+
+    ngx_free(old_previous);
+
+    return NGX_OK;
 }
