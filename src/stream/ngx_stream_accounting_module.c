@@ -26,6 +26,8 @@ static char *ngx_stream_accounting_set_zone(ngx_conf_t *cf, ngx_command_t *cmd, 
 static ngx_int_t ngx_stream_accounting_session_handler(ngx_stream_session_t *r);
 static ngx_stream_accounting_loc_conf_t *ngx_stream_accounting_get_srv_conf(void *entry);
 static ngx_str_t *ngx_stream_accounting_get_accounting_id(ngx_stream_session_t *r);
+static ngx_int_t ngx_stream_accounting_compile_cv(ngx_conf_t *cf, ngx_str_t *value, void **cv);
+static ngx_int_t ngx_stream_accounting_run_cv(void *entry, void *cv, ngx_str_t *out);
 
 static ngx_traffic_accounting_metrics_t *
 ngx_stream_per_process_fetch_metrics(void *context, ngx_str_t *name);
@@ -346,10 +348,47 @@ worker_process_alarm_handler(ngx_event_t *ev)
 }
 
 
+static ngx_int_t
+ngx_stream_accounting_compile_cv(ngx_conf_t *cf, ngx_str_t *value, void **cv)
+{
+    ngx_stream_complex_value_t            *complex;
+    ngx_stream_compile_complex_value_t     ccv;
+
+    complex = ngx_pcalloc(cf->pool, sizeof(ngx_stream_complex_value_t));
+    if (complex == NULL) {
+        return NGX_ERROR;
+    }
+
+    ngx_memzero(&ccv, sizeof(ngx_stream_compile_complex_value_t));
+    ccv.cf = cf;
+    ccv.value = value;
+    ccv.complex_value = complex;
+    ccv.zero = 0;
+    ccv.conf_prefix = 0;
+    ccv.root_prefix = 0;
+
+    if (ngx_stream_compile_complex_value(&ccv) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    *cv = complex;
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+ngx_stream_accounting_run_cv(void *entry, void *cv, ngx_str_t *out)
+{
+    return ngx_stream_complex_value((ngx_stream_session_t *) entry,
+                                    (ngx_stream_complex_value_t *) cv, out);
+}
+
+
 static char *
 ngx_stream_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    return ngx_traffic_accounting_set_accounting_id(cf, cmd, conf, ngx_stream_get_variable_index);
+    return ngx_traffic_accounting_set_accounting_id(cf, cmd, conf,
+        ngx_stream_get_variable_index, ngx_stream_accounting_compile_cv);
 }
 
 
@@ -478,5 +517,6 @@ ngx_stream_accounting_get_indexed_variable(void *entry, ngx_uint_t index)
 static ngx_str_t *
 ngx_stream_accounting_get_accounting_id(ngx_stream_session_t *r)
 {
-    return ngx_traffic_accounting_get_accounting_id(r, ngx_stream_accounting_get_srv_conf, ngx_stream_accounting_get_indexed_variable);
+    return ngx_traffic_accounting_get_accounting_id(r, ngx_stream_accounting_get_srv_conf,
+        ngx_stream_accounting_get_indexed_variable, ngx_stream_accounting_run_cv);
 }

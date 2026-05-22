@@ -20,6 +20,7 @@ ADD . traffic-accounting-nginx-module
 RUN ./configure --prefix=${PREFIX} \
     --with-stream \
     --add-dynamic-module=traffic-accounting-nginx-module \
+    --add-dynamic-module=traffic-accounting-nginx-module/stream \
     --add-dynamic-module=echo-nginx-module-master \
     --http-log-path=/dev/stdout \
     --error-log-path=/dev/stderr \

@@ -46,6 +46,7 @@ typedef struct {
     ngx_str_t       accounting_id;
     ngx_int_t       index;
     ngx_flag_t      skip;
+    void           *cv;
 } ngx_traffic_accounting_loc_conf_t;
 
 void * ngx_traffic_accounting_create_main_conf(ngx_conf_t *cf);
@@ -57,14 +58,16 @@ char * ngx_traffic_accounting_set_log(ngx_conf_t *cf, ngx_command_t *cmd, void *
 char * ngx_traffic_accounting_set_period_reset(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 typedef ngx_int_t (*ngx_get_variable_index_pt) (ngx_conf_t *cf, ngx_str_t *name);
+typedef ngx_int_t (*ngx_compile_cv_pt) (ngx_conf_t *cf, ngx_str_t *value, void **cv);
 char * ngx_traffic_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf,
-    ngx_get_variable_index_pt get_variable_index);
+    ngx_get_variable_index_pt get_variable_index, ngx_compile_cv_pt compile_cv);
 
 
 typedef ngx_traffic_accounting_loc_conf_t *(*ngx_get_loc_conf_pt) (void *entry);
 typedef ngx_variable_value_t *(*ngx_get_indexed_variable_pt) (void *entry, ngx_uint_t index);
+typedef ngx_int_t (*ngx_run_cv_pt) (void *entry, void *cv, ngx_str_t *out);
 ngx_str_t * ngx_traffic_accounting_get_accounting_id(void *entry, ngx_get_loc_conf_pt get_loc_conf,
-    ngx_get_indexed_variable_pt get_indexed_variable);
+    ngx_get_indexed_variable_pt get_indexed_variable, ngx_run_cv_pt run_cv);
 
 
 ngx_int_t ngx_traffic_accounting_period_create(ngx_traffic_accounting_main_conf_t *amcf);
