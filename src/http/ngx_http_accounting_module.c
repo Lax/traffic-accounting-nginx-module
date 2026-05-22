@@ -26,6 +26,8 @@ static char *ngx_http_accounting_set_zone(ngx_conf_t *cf, ngx_command_t *cmd, vo
 static ngx_int_t ngx_http_accounting_request_handler(ngx_http_request_t *r);
 static ngx_http_accounting_loc_conf_t *ngx_http_accounting_get_loc_conf(void *entry);
 static ngx_str_t *ngx_http_accounting_get_accounting_id(ngx_http_request_t *r);
+static ngx_int_t ngx_http_accounting_compile_cv(ngx_conf_t *cf, ngx_str_t *value, void **cv);
+static ngx_int_t ngx_http_accounting_run_cv(void *entry, void *cv, ngx_str_t *out);
 
 static ngx_traffic_accounting_metrics_t *
 ngx_http_per_process_fetch_metrics(void *context, ngx_str_t *name);
@@ -352,10 +354,47 @@ worker_process_alarm_handler(ngx_event_t *ev)
 }
 
 
+static ngx_int_t
+ngx_http_accounting_compile_cv(ngx_conf_t *cf, ngx_str_t *value, void **cv)
+{
+    ngx_http_complex_value_t              *complex;
+    ngx_http_compile_complex_value_t       ccv;
+
+    complex = ngx_pcalloc(cf->pool, sizeof(ngx_http_complex_value_t));
+    if (complex == NULL) {
+        return NGX_ERROR;
+    }
+
+    ngx_memzero(&ccv, sizeof(ngx_http_compile_complex_value_t));
+    ccv.cf = cf;
+    ccv.value = value;
+    ccv.complex_value = complex;
+    ccv.zero = 0;
+    ccv.conf_prefix = 0;
+    ccv.root_prefix = 0;
+
+    if (ngx_http_compile_complex_value(&ccv) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    *cv = complex;
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+ngx_http_accounting_run_cv(void *entry, void *cv, ngx_str_t *out)
+{
+    return ngx_http_complex_value((ngx_http_request_t *) entry,
+                                  (ngx_http_complex_value_t *) cv, out);
+}
+
+
 static char *
 ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    return ngx_traffic_accounting_set_accounting_id(cf, cmd, conf, ngx_http_get_variable_index);
+    return ngx_traffic_accounting_set_accounting_id(cf, cmd, conf,
+        ngx_http_get_variable_index, ngx_http_accounting_compile_cv);
 }
 
 
@@ -491,5 +530,6 @@ ngx_http_accounting_get_indexed_variable(void *entry, ngx_uint_t index)
 static ngx_str_t *
 ngx_http_accounting_get_accounting_id(ngx_http_request_t *r)
 {
-    return ngx_traffic_accounting_get_accounting_id(r, ngx_http_accounting_get_loc_conf, ngx_http_accounting_get_indexed_variable);
+    return ngx_traffic_accounting_get_accounting_id(r, ngx_http_accounting_get_loc_conf,
+        ngx_http_accounting_get_indexed_variable, ngx_http_accounting_run_cv);
 }
