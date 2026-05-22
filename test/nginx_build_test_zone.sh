@@ -16,33 +16,38 @@ docker run --rm --entrypoint /opt/nginx/sbin/nginx "${IMAGE}" -t
 
 echo "=== [3/3] Start & request ==="
 CID=$(docker run -d -p 8090:8080 "${IMAGE}")
-sleep 8
+sleep 3
 
-# Send 3 requests to /index (same accounting_id) to verify accumulation
+# Send 3 requests early so they land in a period that gets rotated
 curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:8090/index || true
 curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:8090/index || true
 curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:8090/index || true
+
+# Wait for period rotation (interval=5, need 2 cycles: one to catch, one to log)
+sleep 12
 
 echo "=== Container logs ==="
-docker logs "${CID}" 2>&1 | tail -20
+docker logs "${CID}" 2>&1 | grep "accounting_id:" | tail -10
 echo ""
 
 echo "=== Verifying zone aggregation markers ==="
 LOGS=$(docker logs "${CID}" 2>&1)
 
-HAS_WORKERS=$(echo "$LOGS" | grep -c 'workers:' || true)
-HAS_PID=$(echo "$LOGS" | grep -c 'pid:' || true)
-HAS_REQUESTS_3=$(echo "$LOGS" | grep -c 'requests:3' || true)
+ACC_LOGS=$(echo "$LOGS" | grep 'accounting_id:' || true)
+HAS_WORKERS=$(echo "$ACC_LOGS" | grep -c 'workers:' || true)
+HAS_REQUESTS=$(echo "$ACC_LOGS" | grep -c 'requests:3' || true)
 
-echo "  workers: prefix found: ${HAS_WORKERS}"
-echo "  pid: prefix found: ${HAS_PID} (expected: 0 in period log)"
-echo "  requests:3 found: ${HAS_REQUESTS_3}"
+echo "  accounting log lines: $(echo "$ACC_LOGS" | wc -l)"
+echo "  workers: in accounting log: ${HAS_WORKERS}"
+echo "  requests:3 found: ${HAS_REQUESTS}"
 
 docker kill "${CID}" >/dev/null 2>&1 || true
 
-if [ "$HAS_WORKERS" -gt 0 ] && [ "$HAS_REQUESTS_3" -gt 0 ]; then
+if [ "$HAS_WORKERS" -gt 0 ] && [ "$HAS_REQUESTS" -gt 0 ]; then
     echo "=== PASS: zone aggregation verified ==="
 else
     echo "=== FAIL: missing workers: prefix or accumulated request count ==="
+    echo "Full container logs:"
+    echo "$LOGS"
     exit 1
 fi
