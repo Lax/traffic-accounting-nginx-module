@@ -9,7 +9,7 @@ IMAGE="nginx-acc-test:${NGX_VER}"
 HOSTS="--add-host logstash:127.0.0.1"
 
 echo "=== [1/3] Build nginx ${NGX_VER} ==="
-docker build -f samples/Dockerfile \
+docker build -f test/Dockerfile.nginx \
   --build-arg "NGX_VER=${NGX_VER}" -t "${IMAGE}" .
 
 echo "=== [2/3] Config validation ==="

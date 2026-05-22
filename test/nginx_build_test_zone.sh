@@ -8,8 +8,8 @@ NGX_VER="${1:-1.30.1}"
 IMAGE="nginx-acc-zone-test:${NGX_VER}"
 
 echo "=== [1/3] Build nginx ${NGX_VER} with accounting_zone ==="
-docker build -f test/Dockerfile-zone \
-  --build-arg "NGX_VER=${NGX_VER}" -t "${IMAGE}" .
+docker build -f test/Dockerfile.nginx \
+  --build-arg "NGX_VER=${NGX_VER}" --build-arg "SUFFIX=-zone" -t "${IMAGE}" .
 
 echo "=== [2/3] Config validation ==="
 docker run --rm --entrypoint /opt/nginx/sbin/nginx "${IMAGE}" -t
