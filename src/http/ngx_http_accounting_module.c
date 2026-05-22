@@ -7,7 +7,7 @@
 #include <ngx_http.h>
 #include <syslog.h>
 #include "ngx_http_accounting_module.h"
-#include "ngx_traffic_accounting_shm.h"
+#include "../ngx_traffic_accounting_shm.h"
 
 
 static char entry_n[] = "requests";

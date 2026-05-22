@@ -7,7 +7,7 @@
 #include <ngx_stream.h>
 #include <syslog.h>
 #include "ngx_stream_accounting_module.h"
-#include "ngx_traffic_accounting_shm.h"
+#include "../ngx_traffic_accounting_shm.h"
 
 
 static char entry_n[] = "sessions";
