@@ -70,7 +70,51 @@ ngx_rbtree_insert(ngx_rbtree_t *tree, ngx_rbtree_node_t *node)
 void
 ngx_rbtree_delete(ngx_rbtree_t *tree, ngx_rbtree_node_t *node)
 {
-    /* stub — not exercised in this test */
+    ngx_rbtree_node_t  *subst, *child;
+
+    if (node->left == tree->sentinel || node->right == tree->sentinel) {
+        subst = node;
+    } else {
+        subst = node->right;
+        while (subst->left != tree->sentinel) {
+            subst = subst->left;
+        }
+    }
+
+    child = (subst->left != tree->sentinel) ? subst->left : subst->right;
+
+    if (subst->parent == NULL) {
+        tree->root = child;
+    } else if (subst == subst->parent->left) {
+        subst->parent->left = child;
+    } else {
+        subst->parent->right = child;
+    }
+
+    if (child != tree->sentinel) {
+        child->parent = subst->parent;
+    }
+
+    if (subst != node) {
+        subst->left   = node->left;
+        subst->right  = node->right;
+        subst->parent = node->parent;
+
+        if (node->left != tree->sentinel) {
+            node->left->parent = subst;
+        }
+        if (node->right != tree->sentinel) {
+            node->right->parent = subst;
+        }
+
+        if (node->parent == NULL) {
+            tree->root = subst;
+        } else if (node == node->parent->left) {
+            node->parent->left = subst;
+        } else {
+            node->parent->right = subst;
+        }
+    }
 }
 
 
@@ -210,6 +254,49 @@ test_normal_alloc(void)
 
 
 static int
+test_period_clear_safety(void)
+{
+    printf("[Test 5] period_clear safety test → ... ");
+    fflush(stdout);
+
+    ngx_traffic_accounting_period_t   period;
+    ngx_log_t                         log;
+    u_char                            name_data[] = "test_clear";
+    ngx_str_t                         name = { 10, name_data };
+    int                               i;
+
+    reset_mock();
+    fail_after = 0;
+
+    ngx_traffic_accounting_period_init(&period);
+
+    for (i = 0; i < 3; i++) {
+        name.data[0] = 'a' + i;
+        ngx_traffic_accounting_period_insert(&period, &name, &log);
+    }
+
+    crash_signo = 0;
+    if (sigsetjmp(crash_env, 1) == 0) {
+        ngx_traffic_accounting_period_clear(&period);
+
+        if (period.rbtree.root == period.rbtree.sentinel) {
+            printf("PASS  (no crash, tree empty)\n");
+            n_pass++;
+            return 1;
+        } else {
+            printf("FAIL  (tree not empty after clear)\n");
+            n_fail++;
+            return 0;
+        }
+    } else {
+        printf("FAIL  (SIGSEGV/%d)\n", crash_signo);
+        n_fail++;
+        return 0;
+    }
+}
+
+
+static int
 test_null_name_compare(void)
 {
     printf("[Test 4] insert_value with NULL name.data → ... ");
@@ -259,6 +346,7 @@ main(void)
     test_data_alloc_fails();
     test_normal_alloc();
     test_null_name_compare();
+    test_period_clear_safety();
 
     printf("\n%d / %d passed\n", n_pass, n_pass + n_fail);
 

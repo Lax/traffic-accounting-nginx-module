@@ -9,6 +9,7 @@
 
 #include <ngx_core.h>
 #include "ngx_traffic_accounting.h"
+#include "ngx_traffic_accounting_shm.h"
 
 
 #define NGX_CONF_INDEX_UNSET -128
@@ -21,6 +22,9 @@ typedef enum {
     NGX_TA_PERIOD_RESET_MONTHLY = 4
 } ngx_ta_period_reset_t;
 
+typedef ngx_traffic_accounting_metrics_t *
+    (*ngx_ta_fetch_metrics_pt)(void *context, ngx_str_t *name);
+
 typedef struct {
     ngx_flag_t      enable;
     ngx_log_t      *log;
@@ -28,6 +32,11 @@ typedef struct {
     ngx_flag_t      perturb;
     ngx_ta_period_reset_t   period_reset;
     ngx_uint_t              last_reset_day;
+
+    ngx_shm_zone_t                     *shm_zone;
+    ngx_traffic_accounting_shm_head_t   *shm_head;
+
+    ngx_ta_fetch_metrics_pt             fetch_metrics;
 
     ngx_traffic_accounting_period_t   *current;
     ngx_traffic_accounting_period_t   *previous;
