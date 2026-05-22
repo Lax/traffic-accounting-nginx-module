@@ -7,14 +7,25 @@ set -e
 NGX_VER="${1:-1.30.1}"
 IMAGE="nginx-acc-zone-test:${NGX_VER}"
 
-echo "=== [1/3] Build nginx ${NGX_VER} with accounting_zone ==="
+echo "=== [1/4] Build nginx ${NGX_VER} base ==="
+BASE_IMAGE="${IMAGE}-base"
 docker build -f test/Dockerfile.nginx \
-  --build-arg "NGX_VER=${NGX_VER}" --build-arg "SUFFIX=-zone" -t "${IMAGE}" .
+  --build-arg "NGX_VER=${NGX_VER}" -t "${BASE_IMAGE}" .
 
-echo "=== [2/3] Config validation ==="
+echo "=== [2/4] Overlay zone test configs ==="
+cat > /tmp/Dockerfile.zone-ovr << EOF
+FROM ${BASE_IMAGE}
+COPY test/zone-nginx.conf /opt/nginx/conf/nginx.conf
+COPY test/zone-http.conf /opt/nginx/conf/http.conf
+COPY test/zone-stream.conf /opt/nginx/conf/stream.conf
+EOF
+docker build -f /tmp/Dockerfile.zone-ovr -t "${IMAGE}" .
+rm -f /tmp/Dockerfile.zone-ovr
+
+echo "=== [3/4] Config validation ==="
 docker run --rm --entrypoint /opt/nginx/sbin/nginx "${IMAGE}" -t
 
-echo "=== [3/3] Start & request ==="
+echo "=== [4/4] Start & request ==="
 CID=$(docker run -d -p 8090:8080 "${IMAGE}")
 sleep 3
 

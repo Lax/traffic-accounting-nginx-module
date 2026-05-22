@@ -189,7 +189,7 @@ where `N` is the number of active worker processes.
 This module can be configured to writes metrics to local file, remote log server or local syslog device.
 
 Open-source log-aggregation software such as logstash also support syslog input, which will help you establish a central log server.
-See [samples/logstash/](samples/logstash/) for examples. [**Recommended**]
+See [samples/monitoring/logstash/](samples/monitoring/logstash/) for examples. [**Recommended**]
 
 To collect logs with local syslog,
 refer [Lax/ngx_http_accounting_module-utils](http://github.com/Lax/ngx_http_accounting_module-utils) to for sample configuration / utils.

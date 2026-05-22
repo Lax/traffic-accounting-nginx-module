@@ -39,10 +39,9 @@ RUN ln -sf /dev/stdout ${PREFIX}/logs/access.log \
     && ln -sf /dev/stderr ${PREFIX}/logs/error.log \
     && ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
-ARG SUFFIX=
-ADD samples/nginx${SUFFIX}.conf ${PREFIX}/conf/nginx.conf
-ADD samples/http${SUFFIX}.conf ${PREFIX}/conf/http.conf
-ADD samples/stream${SUFFIX}.conf ${PREFIX}/conf/stream.conf
+ADD samples/nginx.conf ${PREFIX}/conf/nginx.conf
+ADD samples/http.conf ${PREFIX}/conf/http.conf
+ADD samples/stream.conf ${PREFIX}/conf/stream.conf
 
 EXPOSE 8080
 EXPOSE 9999
