@@ -16,7 +16,7 @@ static ngx_traffic_accounting_metrics_t *
 ngx_traffic_accounting_shm_lookup_metrics(ngx_traffic_accounting_period_t *period,
     ngx_str_t *name);
 
-static ngx_int_t
+static ngx_traffic_accounting_metrics_t *
 ngx_traffic_accounting_shm_insert_metrics(ngx_traffic_accounting_period_t *period,
     ngx_str_t *name, ngx_log_t *log);
 
@@ -184,23 +184,14 @@ ngx_traffic_accounting_metrics_t *
 ngx_traffic_accounting_shm_fetch_metrics(ngx_traffic_accounting_period_t *period,
     ngx_str_t *name, ngx_log_t *log)
 {
-    ngx_slab_pool_t                 *shpool;
     ngx_traffic_accounting_metrics_t *n;
-
-    shpool = (ngx_slab_pool_t *) period->shpool;
 
     n = ngx_traffic_accounting_shm_lookup_metrics(period, name);
     if (n != NULL) {
         return n;
     }
 
-    if (ngx_traffic_accounting_shm_insert_metrics(period, name, log) != NGX_OK) {
-        return NULL;
-    }
-
-    n = ngx_traffic_accounting_shm_lookup_metrics(period, name);
-
-    return n;
+    return ngx_traffic_accounting_shm_insert_metrics(period, name, log);
 }
 
 
@@ -246,7 +237,7 @@ ngx_traffic_accounting_shm_lookup_metrics(
 }
 
 
-static ngx_int_t
+static ngx_traffic_accounting_metrics_t *
 ngx_traffic_accounting_shm_insert_metrics(
     ngx_traffic_accounting_period_t *period, ngx_str_t *name, ngx_log_t *log)
 {
@@ -259,7 +250,7 @@ ngx_traffic_accounting_shm_insert_metrics(
     metrics = ngx_slab_alloc_locked(shpool,
                                     sizeof(ngx_traffic_accounting_metrics_t));
     if (metrics == NULL) {
-        return NGX_ERROR;
+        return NULL;
     }
 
     ngx_memzero(metrics, sizeof(ngx_traffic_accounting_metrics_t));
@@ -267,7 +258,7 @@ ngx_traffic_accounting_shm_insert_metrics(
     data = ngx_slab_alloc_locked(shpool, name->len + 1);
     if (data == NULL) {
         ngx_slab_free_locked(shpool, metrics);
-        return NGX_ERROR;
+        return NULL;
     }
     ngx_memcpy(data, name->data, name->len);
 
@@ -278,7 +269,7 @@ ngx_traffic_accounting_shm_insert_metrics(
 
     ngx_rbtree_insert(&period->rbtree, &metrics->rbnode);
 
-    return NGX_OK;
+    return metrics;
 }
 
 

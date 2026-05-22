@@ -290,6 +290,21 @@ worker_process_alarm_handler(ngx_event_t *ev)
             return;
         }
 
+        if (ngx_traffic_accounting_check_reset(amcf)) {
+            ngx_traffic_accounting_shm_period_destroy(amcf->shm_zone,
+                                                       shm_head->current);
+            if (ngx_traffic_accounting_shm_period_create(amcf->shm_zone,
+                                                          shm_head)
+                != NGX_OK)
+            {
+                ngx_shmtx_unlock(&shpool->mutex);
+                if (!ngx_exiting && ev != NULL) {
+                    ngx_add_timer(ev, (ngx_msec_t)amcf->interval * 1000);
+                }
+                return;
+            }
+        }
+
         ngx_shmtx_unlock(&shpool->mutex);
 
         period = shm_head->previous;
@@ -315,18 +330,8 @@ worker_process_alarm_handler(ngx_event_t *ev)
                                   worker_process_export_metrics,
                                   (void *) period,
                                   NULL );
-    }
 
-    if (ngx_traffic_accounting_check_reset(amcf)) {
-        if (amcf->shm_zone != NULL) {
-            shpool = (ngx_slab_pool_t *) amcf->shm_zone->shm.addr;
-            ngx_shmtx_lock(&shpool->mutex);
-            ngx_traffic_accounting_shm_period_destroy(amcf->shm_zone,
-                                                       amcf->shm_head->current);
-            ngx_traffic_accounting_shm_period_create(amcf->shm_zone,
-                                                      amcf->shm_head);
-            ngx_shmtx_unlock(&shpool->mutex);
-        } else {
+        if (ngx_traffic_accounting_check_reset(amcf)) {
             ngx_traffic_accounting_period_clear(amcf->current);
         }
     }
@@ -383,8 +388,6 @@ ngx_http_accounting_request_handler(ngx_http_request_t *r)
         }
         return NGX_ERROR;
     }
-
-    ngx_traffic_accounting_metrics_init(metrics);
 
     metrics->nr_entries += 1;
     metrics->bytes_in += r->request_length;
