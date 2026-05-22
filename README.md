@@ -38,8 +38,9 @@ place them into `./modules` sub-directory of `nginx`.
 
 Add following lines at the beginning of `nginx.conf`:
 
-```
+```nginx
 load_module modules/ngx_http_accounting_module.so;
+load_module modules/ngx_stream_accounting_module.so;    # (optional) for stream accounting
 ```
 
 Reload nginx config with `nginx -s reload`. *Done!*
@@ -119,16 +120,22 @@ For more details of supported params, refer to [this page from nginx.org](http:/
 If not specified, accounting log will be written to `/dev/log`.
 
 accounting_id
---------------------
+------------------------
 **syntax:** *accounting_id \<accounting_id>*
 
 **default:** *accounting_id default*
 
 **context:** *http, stream, server, location, if in location*
 
-Sets the `accounting_id` string by user defined variable.
+Sets the `accounting_id` string to identify which `metrics` a request/session should be aggregated to.
 
-This string is used to determine which `metrics` a request/session should be aggregated to.
+Supports static strings, single variables, and embedded variables within a string:
+
+```nginx
+accounting_id "api.example.com";       # static string
+accounting_id $host;                    # single variable
+accounting_id "prefix-$host";           # embedded variable in string
+```
 
 accounting_interval
 ------------------------
@@ -209,7 +216,7 @@ if ($http_user_agent ~* '(Googlebot|Bingbot)') {
 
 # Usage
 
-This module can be configured to writes metrics to local file, remote log server or local syslog device.
+This module can be configured to write metrics to local file, remote log server or local syslog device.
 
 Open-source log-aggregation software such as logstash also support syslog input, which will help you establish a central log server.
 See [samples/monitoring/logstash/](samples/monitoring/logstash/) for examples. [**Recommended**]
@@ -239,11 +246,13 @@ ELK_VERSION=8.19.15 NGX_VER=1.30.1 docker-compose up -d
 ## Metrics log format
 
 ```
-# HTTP
+# HTTP (per-process mode: each worker logs its own period)
 2018/05/14 14:18:18 [notice] 5#0: pid:5|from:1526278638|to:1526278659|accounting_id:HTTP_ECHO_HELLO|requests:4872|bytes_in:438480|bytes_out:730800|latency_ms:0|upstream_latency_ms:0|200:4872
-2018/05/14 14:18:18 [notice] 5#0: pid:5|from:1526278638|to:1526278659|accounting_id:INDEX|requests:4849|bytes_in:421863|bytes_out:1857167|latency_ms:0|upstream_latency_ms:0|301:4849
 
-# Stream
+# HTTP (zone mode: aggregated across all workers)
+2018/05/14 14:18:18 [notice] 5#0: workers:2|from:1526278638|to:1526278659|accounting_id:INDEX|requests:4849|bytes_in:421863|bytes_out:1857167|latency_ms:0|upstream_latency_ms:0|301:4849
+
+# Stream (per-process mode)
 2018/05/14 14:18:22 [notice] 5#0: pid:5|from:1526278642|to:1526278659|accounting_id:TCP_PROXY_ECHO|sessions:9723|bytes_in:860343|bytes_out:2587967|latency_ms:4133|upstream_latency_ms:3810|200:9723
 ```
 
@@ -286,14 +295,16 @@ make && make install
 
 
 # to build as `dynamic` module
-# both HTTP and STREAM module, target module file name is ngx_http_accounting_module.so
-./configure --prefix=/opt/nginx --with-stream --add-dynamic-module=traffic-accounting-nginx-module
+# both HTTP and STREAM modules
+./configure --prefix=/opt/nginx --with-stream \
+    --add-dynamic-module=traffic-accounting-nginx-module \
+    --add-dynamic-module=traffic-accounting-nginx-module/stream
 
-# only HTTP module, target module file name is ngx_http_accounting_module.so
+# only HTTP module (produces ngx_http_accounting_module.so)
 #./configure --prefix=/opt/nginx --add-dynamic-module=traffic-accounting-nginx-module
 
-# only STREAM module, target module file name is ngx_stream_accounting_module.so
-#./configure --prefix=/opt/nginx --without-http --add-dynamic-module=traffic-accounting-nginx-module
+# only STREAM module (produces ngx_stream_accounting_module.so)
+#./configure --prefix=/opt/nginx --with-stream --add-dynamic-module=traffic-accounting-nginx-module/stream
 
 make modules
 ```
@@ -302,11 +313,9 @@ make modules
 
 Add the following lines at the beginning of `nginx.conf`:
 
-```
+```nginx
 load_module modules/ngx_http_accounting_module.so;
-
-# for STREAM only build
-#load_module modules/ngx_stream_accounting_module.so;
+load_module modules/ngx_stream_accounting_module.so;    # (optional) stream accounting
 ```
 
 ### Step 3
