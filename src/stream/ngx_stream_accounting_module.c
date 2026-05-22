@@ -284,11 +284,12 @@ worker_process_alarm_handler(ngx_event_t *ev)
                                                        shm_head->previous);
         }
         shm_head->previous = shm_head->current;
-        shm_head->current = NULL;
 
         if (ngx_traffic_accounting_shm_period_create(amcf->shm_zone, shm_head)
             != NGX_OK)
         {
+            shm_head->current = shm_head->previous;
+            shm_head->previous = NULL;
             ngx_shmtx_unlock(&shpool->mutex);
             if (!ngx_exiting && ev != NULL) {
                 ngx_add_timer(ev, (ngx_msec_t)amcf->interval * 1000);
@@ -297,18 +298,22 @@ worker_process_alarm_handler(ngx_event_t *ev)
         }
 
         if (ngx_traffic_accounting_check_reset(amcf)) {
-            ngx_traffic_accounting_shm_period_destroy(amcf->shm_zone,
-                                                       shm_head->current);
+            ngx_traffic_accounting_period_t *old_current = shm_head->current;
+
             if (ngx_traffic_accounting_shm_period_create(amcf->shm_zone,
-                                                          shm_head)
+                                                           shm_head)
                 != NGX_OK)
             {
+                shm_head->current = old_current;
                 ngx_shmtx_unlock(&shpool->mutex);
                 if (!ngx_exiting && ev != NULL) {
                     ngx_add_timer(ev, (ngx_msec_t)amcf->interval * 1000);
                 }
                 return;
             }
+
+            ngx_traffic_accounting_shm_period_destroy(amcf->shm_zone,
+                                                       old_current);
         }
 
         ngx_shmtx_unlock(&shpool->mutex);
@@ -418,7 +423,7 @@ ngx_stream_accounting_session_handler(ngx_stream_session_t *s)
     }
 
     accounting_id = ngx_stream_accounting_get_accounting_id(s);
-    if (accounting_id == NULL) { return NGX_ERROR; }
+    if (accounting_id == NULL) { return NGX_DECLINED; }
 
     amcf = ngx_stream_get_module_main_conf(s, ngx_stream_accounting_module);
 
@@ -432,7 +437,7 @@ ngx_stream_accounting_session_handler(ngx_stream_session_t *s)
         if (amcf->shm_zone != NULL) {
             ngx_shmtx_unlock(&shpool->mutex);
         }
-        return NGX_ERROR;
+        return NGX_DECLINED;
     }
 
     metrics->nr_entries += 1;

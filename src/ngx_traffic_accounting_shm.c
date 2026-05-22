@@ -173,7 +173,7 @@ ngx_traffic_accounting_shm_worker_join(ngx_traffic_accounting_shm_head_t *head)
 void
 ngx_traffic_accounting_shm_worker_leave(ngx_traffic_accounting_shm_head_t *head)
 {
-    if (head != NULL && head->active_workers > 0) {
+    if (head != NULL) {
         (void) ngx_atomic_fetch_add(&head->active_workers,
                                      (ngx_atomic_uint_t) -1);
     }
