@@ -150,6 +150,21 @@ accounting_perturb
 
 Randomly staggers the reporting interval by 20% from the usual time.
 
+accounting_zone
+------------------------
+**syntax:** *accounting_zone \<name> \<size>*
+
+**default:** *-*
+
+**context:** *http, stream*
+
+Allocates a shared memory zone to aggregate metrics across all worker processes.
+When configured, each period produces a single combined log entry per `accounting_id`
+(instead of one entry per worker process per `accounting_id`).
+
+The log format changes from `pid:N` to `workers:N` when a zone is configured,
+where `N` is the number of active worker processes.
+
 # Usage
 
 This module can be configured to writes metrics to local file, remote log server or local syslog device.
@@ -196,6 +211,7 @@ which contains a list of key-values.
 |  key name       |  meanings of values |
 |-----------------|---------------------|
 | `pid`           | pid of nginx worker process |
+| `workers`       | number of active worker processes (only when `accounting_zone` is configured) |
 | `from` / `to`   | metric was collected from the `period` between these timestamps |
 | `accounting_id` | identify for the accounting unit, set by `accounting_id` directive |
 | `requests`      | count of total requests processed in current period (HTTP module only) |

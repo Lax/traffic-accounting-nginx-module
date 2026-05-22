@@ -10,21 +10,10 @@
 static void ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp, ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
 
 ngx_int_t
-ngx_traffic_accounting_metrics_init(ngx_traffic_accounting_metrics_t *metrics, size_t len, ngx_log_t *log)
+ngx_traffic_accounting_metrics_init(ngx_traffic_accounting_metrics_t *metrics)
 {
-    if (metrics->nr_status == NULL) {
-        metrics->nr_status = ngx_calloc(sizeof(ngx_uint_t) * len, log);
-
-        if (metrics->nr_status == NULL)
-            return NGX_ERROR;
-    }
-
-    if (metrics->nr_upstream_status == NULL) {
-        metrics->nr_upstream_status = ngx_calloc(sizeof(ngx_uint_t) * len, log);
-
-        if (metrics->nr_upstream_status == NULL)
-            return NGX_ERROR;
-    }
+    ngx_memzero(metrics->nr_status, sizeof(metrics->nr_status));
+    ngx_memzero(metrics->nr_upstream_status, sizeof(metrics->nr_upstream_status));
 
     return NGX_OK;
 }
@@ -169,8 +158,6 @@ ngx_traffic_accounting_period_rbtree_iterate(ngx_traffic_accounting_period_t *pe
         if (rc == NGX_DONE) {
             /* NGX_DONE -> destroy node */
             ngx_rbtree_delete(rbtree, node);
-            ngx_free(n->nr_status);
-            ngx_free(n->nr_upstream_status);
             ngx_free(n->name.data);
             ngx_free(n);
 

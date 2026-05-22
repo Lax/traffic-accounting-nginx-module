@@ -19,7 +19,8 @@ ngx_traffic_accounting_period_create(ngx_traffic_accounting_main_conf_t *amcf)
 
     ngx_traffic_accounting_period_init(period);
 
-    period->created_at = ngx_timeofday();
+    period->created_at_sec = ngx_time();
+    period->updated_at_sec = period->created_at_sec;
 
     amcf->current = period;
 

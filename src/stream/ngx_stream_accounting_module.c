@@ -7,6 +7,7 @@
 #include <ngx_stream.h>
 #include <syslog.h>
 #include "ngx_stream_accounting_module.h"
+#include "ngx_traffic_accounting_shm.h"
 
 
 static char entry_n[] = "sessions";
@@ -20,9 +21,16 @@ static void ngx_stream_accounting_process_exit(ngx_cycle_t *cycle);
 static void worker_process_alarm_handler(ngx_event_t *ev);
 
 static char *ngx_stream_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+static char *ngx_stream_accounting_set_zone(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 static ngx_int_t ngx_stream_accounting_session_handler(ngx_stream_session_t *r);
 static ngx_str_t *ngx_stream_accounting_get_accounting_id(ngx_stream_session_t *r);
+
+static ngx_traffic_accounting_metrics_t *
+ngx_stream_per_process_fetch_metrics(void *context, ngx_str_t *name);
+
+static ngx_traffic_accounting_metrics_t *
+ngx_stream_shm_fetch_metrics(void *context, ngx_str_t *name);
 
 
 static ngx_command_t  ngx_stream_accounting_commands[] = {
@@ -58,6 +66,13 @@ static ngx_command_t  ngx_stream_accounting_commands[] = {
       NGX_STREAM_MAIN_CONF|NGX_STREAM_SRV_CONF|NGX_CONF_TAKE1,
       ngx_stream_accounting_set_accounting_id,
       NGX_STREAM_SRV_CONF_OFFSET,
+      0,
+      NULL},
+
+    { ngx_string("accounting_zone"),
+      NGX_STREAM_MAIN_CONF|NGX_CONF_TAKE2,
+      ngx_stream_accounting_set_zone,
+      NGX_STREAM_MAIN_CONF_OFFSET,
       0,
       NULL},
 
@@ -129,15 +144,25 @@ ngx_stream_accounting_process_init(ngx_cycle_t *cycle)
     }
 
     if (amcf->log != NULL) {
-        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0, "pid:%i|start stream traffic accounting", ngx_getpid());
+        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0,
+                      "pid:%i|start stream traffic accounting", ngx_getpid());
     } else {
         openlog((char *)ngx_stream_accounting_title, LOG_NDELAY, LOG_SYSLOG);
         syslog(LOG_INFO, "pid:%i|start stream traffic accounting", ngx_getpid());
     }
 
-    if (amcf->current == NULL) {
-        if (ngx_traffic_accounting_period_create(amcf) != NGX_OK)
-            return NGX_ERROR;
+    if (amcf->shm_zone != NULL) {
+        amcf->shm_head = amcf->shm_zone->data;
+        amcf->fetch_metrics = ngx_stream_shm_fetch_metrics;
+
+        ngx_traffic_accounting_shm_worker_join(amcf->shm_head);
+    } else {
+        amcf->fetch_metrics = ngx_stream_per_process_fetch_metrics;
+
+        if (amcf->current == NULL) {
+            if (ngx_traffic_accounting_period_create(amcf) != NGX_OK)
+                return NGX_ERROR;
+        }
     }
 
     ev = ngx_pcalloc(cycle->pool, sizeof(ngx_event_t));
@@ -172,42 +197,113 @@ ngx_stream_accounting_process_exit(ngx_cycle_t *cycle)
 
     worker_process_alarm_handler(NULL);
 
+    if (amcf->shm_zone != NULL) {
+        ngx_traffic_accounting_shm_worker_leave(amcf->shm_head);
+    }
+
     if (amcf->log != NULL) {
-        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0, "pid:%i|stop stream traffic accounting", ngx_getpid());
+        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0,
+                      "pid:%i|stop stream traffic accounting", ngx_getpid());
     } else {
         syslog(LOG_INFO, "pid:%i|stop stream traffic accounting", ngx_getpid());
     }
 }
 
+
 static ngx_int_t
 worker_process_export_metrics(void *val, void *para1, void *para2)
 {
     ngx_stream_accounting_main_conf_t   *amcf;
+    ngx_traffic_accounting_period_t     *period;
+    ngx_uint_t                           nr_workers;
     ngx_int_t                            rc;
 
     amcf = ngx_stream_cycle_get_module_main_conf(ngx_cycle, ngx_stream_accounting_module);
+    period = (ngx_traffic_accounting_period_t *) para1;
+    nr_workers = (ngx_uint_t) (uintptr_t) para2;
 
-    rc = ngx_traffic_accounting_log_metrics(val, para1, para2,
+    rc = ngx_traffic_accounting_log_metrics(val, period, nr_workers,
                                             amcf->log, entry_n,
                                             ngx_stream_statuses,
                                             ngx_stream_statuses_len );
-    if (rc == NGX_OK) { return NGX_DONE; }  /* NGX_DONE -> destroy node */
+    if (rc == NGX_OK) {
+        return (nr_workers > 0) ? NGX_OK : NGX_DONE;
+    }
 
     return rc;
 }
+
 
 static void
 worker_process_alarm_handler(ngx_event_t *ev)
 {
     ngx_stream_accounting_main_conf_t   *amcf;
+    ngx_traffic_accounting_shm_head_t   *shm_head;
+    ngx_traffic_accounting_period_t     *period;
+    ngx_slab_pool_t                     *shpool;
+    ngx_uint_t                           nr_workers;
+    ngx_atomic_uint_t                    old_epoch;
 
     amcf = ngx_stream_cycle_get_module_main_conf(ngx_cycle, ngx_stream_accounting_module);
 
-    ngx_traffic_accounting_period_rotate(amcf);
-    ngx_traffic_accounting_period_rbtree_iterate(amcf->previous,
-                              worker_process_export_metrics,
-                              amcf->previous->created_at,
-                              amcf->previous->updated_at );
+    if (amcf->shm_zone != NULL) {
+        shm_head = amcf->shm_head;
+        shpool = (ngx_slab_pool_t *) amcf->shm_zone->shm.addr;
+
+        old_epoch = shm_head->epoch;
+
+        if (!ngx_atomic_cmp_set(&shm_head->epoch, old_epoch, old_epoch + 1))
+        {
+            if (!ngx_exiting && ev != NULL) {
+                ngx_add_timer(ev, (ngx_msec_t)amcf->interval * 1000);
+            }
+            return;
+        }
+
+        ngx_shmtx_lock(&shpool->mutex);
+
+        if (shm_head->previous != NULL) {
+            ngx_traffic_accounting_shm_period_destroy(amcf->shm_zone,
+                                                       shm_head->previous);
+        }
+        shm_head->previous = shm_head->current;
+        shm_head->current = NULL;
+
+        if (ngx_traffic_accounting_shm_period_create(amcf->shm_zone, shm_head)
+            != NGX_OK)
+        {
+            ngx_shmtx_unlock(&shpool->mutex);
+            if (!ngx_exiting && ev != NULL) {
+                ngx_add_timer(ev, (ngx_msec_t)amcf->interval * 1000);
+            }
+            return;
+        }
+
+        ngx_shmtx_unlock(&shpool->mutex);
+
+        period = shm_head->previous;
+        nr_workers = (ngx_uint_t) shm_head->active_workers;
+
+        ngx_traffic_accounting_period_rbtree_iterate(period,
+                                  worker_process_export_metrics,
+                                  (void *) period,
+                                  (void *) (uintptr_t) nr_workers );
+
+        ngx_shmtx_lock(&shpool->mutex);
+        ngx_traffic_accounting_shm_period_destroy(amcf->shm_zone, period);
+        shm_head->previous = NULL;
+        ngx_shmtx_unlock(&shpool->mutex);
+
+    } else {
+        ngx_traffic_accounting_period_rotate(amcf);
+
+        period = amcf->previous;
+
+        ngx_traffic_accounting_period_rbtree_iterate(period,
+                                  worker_process_export_metrics,
+                                  (void *) period,
+                                  NULL );
+    }
 
     if (ngx_exiting || ev == NULL)
         return;
@@ -223,12 +319,21 @@ ngx_stream_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void
 }
 
 
+static char *
+ngx_stream_accounting_set_zone(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    return ngx_traffic_accounting_set_zone(cf, cmd, conf,
+                                            &ngx_stream_accounting_module);
+}
+
+
 static ngx_int_t
 ngx_stream_accounting_session_handler(ngx_stream_session_t *s)
 {
     ngx_str_t                           *accounting_id;
     ngx_traffic_accounting_metrics_t    *metrics;
     ngx_stream_accounting_main_conf_t   *amcf;
+    ngx_slab_pool_t                     *shpool;
 
     ngx_uint_t                     status, i;
     ngx_time_t                    *tp = ngx_timeofday();
@@ -240,13 +345,20 @@ ngx_stream_accounting_session_handler(ngx_stream_session_t *s)
 
     amcf = ngx_stream_get_module_main_conf(s, ngx_stream_accounting_module);
 
-    metrics = ngx_traffic_accounting_period_fetch_metrics(amcf->current, accounting_id, amcf->log);
-    if (metrics == NULL) { return NGX_ERROR; }
+    if (amcf->shm_zone != NULL) {
+        shpool = (ngx_slab_pool_t *) amcf->shm_zone->shm.addr;
+        ngx_shmtx_lock(&shpool->mutex);
+    }
 
-    if (ngx_traffic_accounting_metrics_init(metrics, ngx_stream_statuses_len, amcf->log) == NGX_ERROR)
+    metrics = amcf->fetch_metrics(amcf, accounting_id);
+    if (metrics == NULL) {
+        if (amcf->shm_zone != NULL) {
+            ngx_shmtx_unlock(&shpool->mutex);
+        }
         return NGX_ERROR;
+    }
 
-    amcf->current->updated_at = ngx_timeofday();
+    ngx_traffic_accounting_metrics_init(metrics);
 
     metrics->nr_entries += 1;
     metrics->bytes_in += s->received;
@@ -277,8 +389,43 @@ ngx_stream_accounting_session_handler(ngx_stream_session_t *s)
         metrics->total_upstream_latency_ms += ms;
     }
 
+    if (amcf->shm_zone != NULL) {
+        ngx_shmtx_unlock(&shpool->mutex);
+    }
+
     return NGX_DECLINED;
 }
+
+
+static ngx_traffic_accounting_metrics_t *
+ngx_stream_per_process_fetch_metrics(void *context, ngx_str_t *name)
+{
+    ngx_traffic_accounting_main_conf_t *amcf = context;
+    ngx_traffic_accounting_metrics_t   *metrics;
+
+    metrics = ngx_traffic_accounting_period_fetch_metrics(amcf->current,
+                                                           name, amcf->log);
+    if (metrics != NULL) {
+        amcf->current->updated_at_sec = ngx_time();
+    }
+    return metrics;
+}
+
+
+static ngx_traffic_accounting_metrics_t *
+ngx_stream_shm_fetch_metrics(void *context, ngx_str_t *name)
+{
+    ngx_traffic_accounting_main_conf_t *amcf = context;
+    ngx_traffic_accounting_metrics_t   *metrics;
+
+    metrics = ngx_traffic_accounting_shm_fetch_metrics(amcf->shm_head->current,
+                                                        name, amcf->log);
+    if (metrics != NULL) {
+        amcf->shm_head->current->updated_at_sec = ngx_time();
+    }
+    return metrics;
+}
+
 
 static ngx_stream_accounting_loc_conf_t *
 ngx_stream_accounting_get_srv_conf(void *entry)
