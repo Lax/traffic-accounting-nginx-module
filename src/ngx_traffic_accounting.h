@@ -20,6 +20,8 @@ ngx_uint_t ngx_status_bsearch(ngx_uint_t status, ngx_uint_t statuses[], ngx_uint
  * Period / Metrics
  */
 
+#define NGX_TA_MAX_STATUSES 64
+
 typedef struct {
     ngx_rbtree_node_t   rbnode;
 
@@ -30,22 +32,24 @@ typedef struct {
     ngx_uint_t          bytes_out;
     ngx_uint_t          total_latency_ms;
     ngx_uint_t          total_upstream_latency_ms;
-    ngx_uint_t         *nr_status;
-    ngx_uint_t         *nr_upstream_status;
+    ngx_uint_t          nr_status[NGX_TA_MAX_STATUSES];
+    ngx_uint_t          nr_upstream_status[NGX_TA_MAX_STATUSES];
 } ngx_traffic_accounting_metrics_t;
 
 typedef struct {
     ngx_rbtree_t       rbtree;
     ngx_rbtree_node_t  sentinel;
 
-    ngx_time_t        *created_at;
-    ngx_time_t        *updated_at;
+    time_t             created_at_sec;
+    time_t             updated_at_sec;
+
+    void              *shpool;
 } ngx_traffic_accounting_period_t;
 
-ngx_int_t ngx_traffic_accounting_metrics_init(ngx_traffic_accounting_metrics_t *metrics, size_t len, ngx_log_t *log);
+ngx_int_t ngx_traffic_accounting_metrics_init(ngx_traffic_accounting_metrics_t *metrics);
 
 ngx_int_t ngx_traffic_accounting_period_init(ngx_traffic_accounting_period_t *period);
-void ngx_traffic_accounting_period_insert(ngx_traffic_accounting_period_t *period, ngx_str_t *name, ngx_log_t *log);
+ngx_int_t ngx_traffic_accounting_period_insert(ngx_traffic_accounting_period_t *period, ngx_str_t *name, ngx_log_t *log);
 void ngx_traffic_accounting_period_insert_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics);
 void ngx_traffic_accounting_period_delete(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
 void ngx_traffic_accounting_period_delete_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics);
@@ -64,7 +68,8 @@ ngx_int_t ngx_traffic_accounting_period_rbtree_iterate(ngx_traffic_accounting_pe
 
 #define NGXTA_LOG_LEVEL    NGX_LOG_NOTICE
 
-ngx_int_t ngx_traffic_accounting_log_metrics(void *val, void *para1, void *para2,
+ngx_int_t ngx_traffic_accounting_log_metrics(void *val,
+    ngx_traffic_accounting_period_t *period, ngx_uint_t nr_workers,
     ngx_log_t *log, char entry_n[], ngx_uint_t statuses[], ngx_uint_t statuses_len);
 
 

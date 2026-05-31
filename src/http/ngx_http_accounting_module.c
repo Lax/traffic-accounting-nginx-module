@@ -7,6 +7,7 @@
 #include <ngx_http.h>
 #include <syslog.h>
 #include "ngx_http_accounting_module.h"
+#include "../ngx_traffic_accounting_shm.h"
 
 
 static char entry_n[] = "requests";
@@ -20,9 +21,19 @@ static void ngx_http_accounting_process_exit(ngx_cycle_t *cycle);
 static void worker_process_alarm_handler(ngx_event_t *ev);
 
 static char *ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
+static char *ngx_http_accounting_set_zone(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 static ngx_int_t ngx_http_accounting_request_handler(ngx_http_request_t *r);
+static ngx_http_accounting_loc_conf_t *ngx_http_accounting_get_loc_conf(void *entry);
 static ngx_str_t *ngx_http_accounting_get_accounting_id(ngx_http_request_t *r);
+static ngx_int_t ngx_http_accounting_compile_cv(ngx_conf_t *cf, ngx_str_t *value, void **cv);
+static ngx_int_t ngx_http_accounting_run_cv(void *entry, void *cv, ngx_str_t *out);
+
+static ngx_traffic_accounting_metrics_t *
+ngx_http_per_process_fetch_metrics(void *context, ngx_str_t *name);
+
+static ngx_traffic_accounting_metrics_t *
+ngx_http_shm_fetch_metrics(void *context, ngx_str_t *name);
 
 
 static ngx_command_t  ngx_http_accounting_commands[] = {
@@ -47,6 +58,13 @@ static ngx_command_t  ngx_http_accounting_commands[] = {
       offsetof(ngx_http_accounting_main_conf_t, perturb),
       NULL},
 
+    { ngx_string("accounting_period_reset"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_traffic_accounting_set_period_reset,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      0,
+      NULL},
+
     { ngx_string("accounting_log"),
       NGX_HTTP_MAIN_CONF|NGX_CONF_1MORE,
       ngx_traffic_accounting_set_log,
@@ -59,6 +77,21 @@ static ngx_command_t  ngx_http_accounting_commands[] = {
                         |NGX_CONF_TAKE1,
       ngx_http_accounting_set_accounting_id,
       NGX_HTTP_LOC_CONF_OFFSET,
+      0,
+      NULL},
+
+    { ngx_string("accounting_skip"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF
+                        |NGX_CONF_TAKE1,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(ngx_traffic_accounting_loc_conf_t, skip),
+      NULL},
+
+    { ngx_string("accounting_zone"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE2,
+      ngx_http_accounting_set_zone,
+      NGX_HTTP_MAIN_CONF_OFFSET,
       0,
       NULL},
 
@@ -132,15 +165,28 @@ ngx_http_accounting_process_init(ngx_cycle_t *cycle)
     }
 
     if (amcf->log != NULL) {
-        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0, "pid:%i|start http traffic accounting", ngx_getpid());
+        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0,
+                      "pid:%i|start http traffic accounting", ngx_getpid());
     } else {
         openlog((char *)ngx_http_accounting_title, LOG_NDELAY, LOG_SYSLOG);
         syslog(LOG_INFO, "pid:%i|start http traffic accounting", ngx_getpid());
     }
 
-    if (amcf->current == NULL) {
-        if (ngx_traffic_accounting_period_create(amcf) != NGX_OK)
+    if (amcf->shm_zone != NULL) {
+        amcf->shm_head = amcf->shm_zone->data;
+        if (amcf->shm_head == NULL) {
             return NGX_ERROR;
+        }
+        amcf->fetch_metrics = ngx_http_shm_fetch_metrics;
+
+        ngx_traffic_accounting_shm_worker_join(amcf->shm_head);
+    } else {
+        amcf->fetch_metrics = ngx_http_per_process_fetch_metrics;
+
+        if (amcf->current == NULL) {
+            if (ngx_traffic_accounting_period_create(amcf) != NGX_OK)
+                return NGX_ERROR;
+        }
     }
 
     ev = ngx_pcalloc(cycle->pool, sizeof(ngx_event_t));
@@ -175,42 +221,144 @@ ngx_http_accounting_process_exit(ngx_cycle_t *cycle)
 
     worker_process_alarm_handler(NULL);
 
+    if (amcf->shm_zone != NULL) {
+        ngx_traffic_accounting_shm_worker_leave(amcf->shm_head);
+    }
+
     if (amcf->log != NULL) {
-        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0, "pid:%i|stop http traffic accounting", ngx_getpid());
+        ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0,
+                      "pid:%i|stop http traffic accounting", ngx_getpid());
     } else {
         syslog(LOG_INFO, "pid:%i|stop http traffic accounting", ngx_getpid());
+        closelog();
     }
 }
+
 
 static ngx_int_t
 worker_process_export_metrics(void *val, void *para1, void *para2)
 {
     ngx_http_accounting_main_conf_t   *amcf;
+    ngx_traffic_accounting_period_t   *period;
+    ngx_uint_t                         nr_workers;
     ngx_int_t                          rc;
 
     amcf = ngx_http_cycle_get_module_main_conf(ngx_cycle, ngx_http_accounting_module);
+    period = (ngx_traffic_accounting_period_t *) para1;
+    nr_workers = (ngx_uint_t) (uintptr_t) para2;
 
-    rc = ngx_traffic_accounting_log_metrics(val, para1, para2,
+    rc = ngx_traffic_accounting_log_metrics(val, period, nr_workers,
                                             amcf->log, entry_n,
                                             ngx_http_statuses,
                                             ngx_http_statuses_len );
-    if (rc == NGX_OK) { return NGX_DONE; }  /* NGX_DONE -> destroy node */
+    if (rc == NGX_OK) {
+        /* NGX_DONE -> auto-destroy node for per-process path */
+        return (nr_workers > 0) ? NGX_OK : NGX_DONE;
+    }
 
     return rc;
 }
 
+
 static void
 worker_process_alarm_handler(ngx_event_t *ev)
 {
-    ngx_http_accounting_main_conf_t   *amcf;
+    ngx_http_accounting_main_conf_t    *amcf;
+    ngx_traffic_accounting_shm_head_t  *shm_head;
+    ngx_traffic_accounting_period_t    *period;
+    ngx_slab_pool_t                    *shpool;
+    ngx_uint_t                          nr_workers;
+    ngx_atomic_uint_t                   old_epoch;
 
     amcf = ngx_http_cycle_get_module_main_conf(ngx_cycle, ngx_http_accounting_module);
 
-    ngx_traffic_accounting_period_rotate(amcf);
-    ngx_traffic_accounting_period_rbtree_iterate(amcf->previous,
-                              worker_process_export_metrics,
-                              amcf->previous->created_at,
-                              amcf->previous->updated_at );
+    if (amcf->shm_zone != NULL) {
+        shm_head = amcf->shm_head;
+        shpool = (ngx_slab_pool_t *) amcf->shm_zone->shm.addr;
+
+        old_epoch = shm_head->epoch;
+
+        if (!ngx_atomic_cmp_set(&shm_head->epoch, old_epoch, old_epoch + 1))
+        {
+            if (!ngx_exiting && ev != NULL) {
+                ngx_add_timer(ev, (ngx_msec_t)amcf->interval * 1000);
+            }
+            return;
+        }
+
+        ngx_shmtx_lock(&shpool->mutex);
+
+        if (shm_head->previous != NULL) {
+            ngx_traffic_accounting_shm_period_destroy(amcf->shm_zone,
+                                                       shm_head->previous);
+        }
+        shm_head->previous = shm_head->current;
+
+        if (ngx_traffic_accounting_shm_period_create(amcf->shm_zone, shm_head)
+            != NGX_OK)
+        {
+            shm_head->current = shm_head->previous;
+            shm_head->previous = NULL;
+            ngx_shmtx_unlock(&shpool->mutex);
+            if (!ngx_exiting && ev != NULL) {
+                ngx_add_timer(ev, (ngx_msec_t)amcf->interval * 1000);
+            }
+            return;
+        }
+
+        if (ngx_traffic_accounting_check_reset(amcf)) {
+            ngx_traffic_accounting_period_t *old_current = shm_head->current;
+
+            if (ngx_traffic_accounting_shm_period_create(amcf->shm_zone,
+                                                           shm_head)
+                != NGX_OK)
+            {
+                shm_head->current = old_current;
+                ngx_shmtx_unlock(&shpool->mutex);
+                if (!ngx_exiting && ev != NULL) {
+                    ngx_add_timer(ev, (ngx_msec_t)amcf->interval * 1000);
+                }
+                return;
+            }
+
+            ngx_traffic_accounting_shm_period_destroy(amcf->shm_zone,
+                                                       old_current);
+        }
+
+        ngx_shmtx_unlock(&shpool->mutex);
+
+        period = shm_head->previous;
+        nr_workers = (ngx_uint_t) shm_head->active_workers;
+
+        ngx_traffic_accounting_period_rbtree_iterate(period,
+                                  worker_process_export_metrics,
+                                  (void *) period,
+                                  (void *) (uintptr_t) nr_workers );
+
+        ngx_shmtx_lock(&shpool->mutex);
+        ngx_traffic_accounting_shm_period_destroy(amcf->shm_zone, period);
+        shm_head->previous = NULL;
+        ngx_shmtx_unlock(&shpool->mutex);
+
+    } else {
+        /* per-process path */
+        if (ngx_traffic_accounting_period_rotate(amcf) != NGX_OK) {
+            goto done;
+        }
+
+        period = amcf->previous;
+
+        ngx_traffic_accounting_period_rbtree_iterate(period,
+                                  worker_process_export_metrics,
+                                  (void *) period,
+                                  NULL );
+
+        if (ngx_traffic_accounting_check_reset(amcf)) {
+            ngx_traffic_accounting_period_clear(amcf->current);
+        }
+    }
+
+done:
 
     if (ngx_exiting || ev == NULL)
         return;
@@ -219,10 +367,55 @@ worker_process_alarm_handler(ngx_event_t *ev)
 }
 
 
+static ngx_int_t
+ngx_http_accounting_compile_cv(ngx_conf_t *cf, ngx_str_t *value, void **cv)
+{
+    ngx_http_complex_value_t              *complex;
+    ngx_http_compile_complex_value_t       ccv;
+
+    complex = ngx_pcalloc(cf->pool, sizeof(ngx_http_complex_value_t));
+    if (complex == NULL) {
+        return NGX_ERROR;
+    }
+
+    ngx_memzero(&ccv, sizeof(ngx_http_compile_complex_value_t));
+    ccv.cf = cf;
+    ccv.value = value;
+    ccv.complex_value = complex;
+    ccv.zero = 0;
+    ccv.conf_prefix = 0;
+    ccv.root_prefix = 0;
+
+    if (ngx_http_compile_complex_value(&ccv) != NGX_OK) {
+        return NGX_ERROR;
+    }
+
+    *cv = complex;
+    return NGX_OK;
+}
+
+
+static ngx_int_t
+ngx_http_accounting_run_cv(void *entry, void *cv, ngx_str_t *out)
+{
+    return ngx_http_complex_value((ngx_http_request_t *) entry,
+                                  (ngx_http_complex_value_t *) cv, out);
+}
+
+
 static char *
 ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    return ngx_traffic_accounting_set_accounting_id(cf, cmd, conf, ngx_http_get_variable_index);
+    return ngx_traffic_accounting_set_accounting_id(cf, cmd, conf,
+        ngx_http_get_variable_index, ngx_http_accounting_compile_cv);
+}
+
+
+static char *
+ngx_http_accounting_set_zone(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    return ngx_traffic_accounting_set_zone(cf, cmd, conf,
+                                            &ngx_http_accounting_module);
 }
 
 
@@ -232,28 +425,43 @@ ngx_http_accounting_request_handler(ngx_http_request_t *r)
     ngx_str_t                          *accounting_id;
     ngx_traffic_accounting_metrics_t   *metrics;
     ngx_http_accounting_main_conf_t    *amcf;
+    ngx_slab_pool_t                    *shpool = NULL;
 
     ngx_uint_t                   status, i;
     ngx_time_t                  *tp = ngx_timeofday();
     ngx_msec_int_t               ms = 0;
     ngx_http_upstream_state_t   *state;
 
+    {
+        ngx_http_accounting_loc_conf_t *alcf = ngx_http_accounting_get_loc_conf(r);
+        if (alcf == NULL || alcf->skip) {
+            return NGX_DECLINED;
+        }
+    }
+
     accounting_id = ngx_http_accounting_get_accounting_id(r);
-    if (accounting_id == NULL) { return NGX_ERROR; }
+    if (accounting_id == NULL) { return NGX_DECLINED; }
 
     amcf = ngx_http_get_module_main_conf(r, ngx_http_accounting_module);
 
-    metrics = ngx_traffic_accounting_period_fetch_metrics(amcf->current, accounting_id, amcf->log);
-    if (metrics == NULL) { return NGX_ERROR; }
+    if (amcf->shm_zone != NULL) {
+        shpool = (ngx_slab_pool_t *) amcf->shm_zone->shm.addr;
+        ngx_shmtx_lock(&shpool->mutex);
+    }
 
-    if (ngx_traffic_accounting_metrics_init(metrics, ngx_http_statuses_len, amcf->log) == NGX_ERROR)
-        return NGX_ERROR;
-
-    amcf->current->updated_at = ngx_timeofday();
+    metrics = amcf->fetch_metrics(amcf, accounting_id);
+    if (metrics == NULL) {
+        if (amcf->shm_zone != NULL) {
+            ngx_shmtx_unlock(&shpool->mutex);
+        }
+        return NGX_DECLINED;
+    }
 
     metrics->nr_entries += 1;
     metrics->bytes_in += r->request_length;
-    metrics->bytes_out += r->connection->sent;
+    if (r->connection) {
+        metrics->bytes_out += r->connection->sent;
+    }
 
     if (r->err_status) {
         status = r->err_status;
@@ -287,8 +495,47 @@ ngx_http_accounting_request_handler(ngx_http_request_t *r)
         metrics->total_upstream_latency_ms += ms;
     }
 
+    if (amcf->shm_zone != NULL) {
+        ngx_shmtx_unlock(&shpool->mutex);
+    }
+
     return NGX_DECLINED;
 }
+
+
+static ngx_traffic_accounting_metrics_t *
+ngx_http_per_process_fetch_metrics(void *context, ngx_str_t *name)
+{
+    ngx_traffic_accounting_main_conf_t *amcf = context;
+    ngx_traffic_accounting_metrics_t   *metrics;
+
+    metrics = ngx_traffic_accounting_period_fetch_metrics(amcf->current,
+                                                           name, amcf->log);
+    if (metrics != NULL) {
+        amcf->current->updated_at_sec = ngx_time();
+    }
+    return metrics;
+}
+
+
+static ngx_traffic_accounting_metrics_t *
+ngx_http_shm_fetch_metrics(void *context, ngx_str_t *name)
+{
+    ngx_traffic_accounting_main_conf_t *amcf = context;
+    ngx_traffic_accounting_metrics_t   *metrics;
+
+    if (amcf->shm_head == NULL || amcf->shm_head->current == NULL) {
+        return NULL;
+    }
+
+    metrics = ngx_traffic_accounting_shm_fetch_metrics(amcf->shm_head->current,
+                                                         name, amcf->log);
+    if (metrics != NULL) {
+        amcf->shm_head->current->updated_at_sec = ngx_time();
+    }
+    return metrics;
+}
+
 
 static ngx_http_accounting_loc_conf_t *
 ngx_http_accounting_get_loc_conf(void *entry)
@@ -305,5 +552,6 @@ ngx_http_accounting_get_indexed_variable(void *entry, ngx_uint_t index)
 static ngx_str_t *
 ngx_http_accounting_get_accounting_id(ngx_http_request_t *r)
 {
-    return ngx_traffic_accounting_get_accounting_id(r, ngx_http_accounting_get_loc_conf, ngx_http_accounting_get_indexed_variable);
+    return ngx_traffic_accounting_get_accounting_id(r, ngx_http_accounting_get_loc_conf,
+        ngx_http_accounting_get_indexed_variable, ngx_http_accounting_run_cv);
 }

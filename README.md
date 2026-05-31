@@ -38,8 +38,9 @@ place them into `./modules` sub-directory of `nginx`.
 
 Add following lines at the beginning of `nginx.conf`:
 
-```
+```nginx
 load_module modules/ngx_http_accounting_module.so;
+load_module modules/ngx_stream_accounting_module.so;    # (optional) for stream accounting
 ```
 
 Reload nginx config with `nginx -s reload`. *Done!*
@@ -119,16 +120,22 @@ For more details of supported params, refer to [this page from nginx.org](http:/
 If not specified, accounting log will be written to `/dev/log`.
 
 accounting_id
---------------------
+------------------------
 **syntax:** *accounting_id \<accounting_id>*
 
 **default:** *accounting_id default*
 
 **context:** *http, stream, server, location, if in location*
 
-Sets the `accounting_id` string by user defined variable.
+Sets the `accounting_id` string to identify which `metrics` a request/session should be aggregated to.
 
-This string is used to determine which `metrics` a request/session should be aggregated to.
+Supports static strings, single variables, and embedded variables within a string:
+
+```nginx
+accounting_id "api.example.com";       # static string
+accounting_id $host;                    # single variable
+accounting_id "prefix-$host";           # embedded variable in string
+```
 
 accounting_interval
 ------------------------
@@ -150,12 +157,69 @@ accounting_perturb
 
 Randomly staggers the reporting interval by 20% from the usual time.
 
+accounting_period_reset
+-------------------------
+**syntax:** *accounting_period_reset none | hourly | daily | weekly | monthly*
+
+**default:** *accounting_period_reset none*
+
+**context:** *http, stream*
+
+Resets all accumulated metrics counters at configured calendar boundary.
+
+When set to a value other than `none`, the module will clear all metrics
+periodically at the start of each hour / day / week / month.
+This is useful for tracking high-level usage quotas (e.g. monthly bandwidth).
+
+`hourly`  - clears metrics at the start of each hour.
+`daily`   - clears metrics at the start of each day (midnight).
+`weekly`  - clears metrics on Monday at midnight.
+`monthly` - clears metrics on the 1st day of each month at midnight.
+
+accounting_zone
+------------------------
+**syntax:** *accounting_zone \<name> \<size>*
+
+**default:** *-*
+
+**context:** *http, stream*
+
+Allocates a shared memory zone to aggregate metrics across all worker processes.
+When configured, each period produces a single combined log entry per `accounting_id`
+(instead of one entry per worker process per `accounting_id`).
+
+The log format changes from `pid:N` to `workers:N` when a zone is configured,
+where `N` is the number of active worker processes.
+
+accounting_skip
+------------------------
+**syntax:** *accounting_skip on | off*
+
+**default:** *accounting_skip off*
+
+**context:** *http, stream, server, location, if in location*
+
+When set to `on`, skips traffic accounting for the current request/session.
+Useful for excluding health checks, bots, or cached responses:
+
+```nginx
+# Skip accounting for cache hits
+if ($upstream_cache_status = "HIT") {
+    accounting_skip on;
+}
+
+# Skip accounting for search engine bots
+if ($http_user_agent ~* '(Googlebot|Bingbot)') {
+    accounting_skip on;
+}
+```
+
 # Usage
 
-This module can be configured to writes metrics to local file, remote log server or local syslog device.
+This module can be configured to write metrics to local file, remote log server or local syslog device.
 
 Open-source log-aggregation software such as logstash also support syslog input, which will help you establish a central log server.
-See [samples/logstash/](samples/logstash/) for examples. [**Recommended**]
+See [samples/monitoring/logstash/](samples/monitoring/logstash/) for examples. [**Recommended**]
 
 To collect logs with local syslog,
 refer [Lax/ngx_http_accounting_module-utils](http://github.com/Lax/ngx_http_accounting_module-utils) to for sample configuration / utils.
@@ -170,25 +234,25 @@ docker-compose up -d
 
 Open Grafana (address: `http://localhost:3000`) in your browser.
 
-Create and configurate elasticsearch datasource with options:
-```
-Type: elasticsearch
-URL: http://elasticsearch:9200
-Version: 5.6+
-Min time interval: 1m
-```
+Login with `admin` / `admin`. The elasticsearch datasource and accounting dashboard are auto-provisioned.
 
-Then import accounting dashboard from  [`samples/accounting-dashboard-grafana.json`](samples/accounting-dashboard-grafana.json).
+To customize versions:
+
+```
+ELK_VERSION=8.19.15 NGX_VER=1.30.1 docker-compose up -d
+```
 
 
 ## Metrics log format
 
 ```
-# HTTP
+# HTTP (per-process mode: each worker logs its own period)
 2018/05/14 14:18:18 [notice] 5#0: pid:5|from:1526278638|to:1526278659|accounting_id:HTTP_ECHO_HELLO|requests:4872|bytes_in:438480|bytes_out:730800|latency_ms:0|upstream_latency_ms:0|200:4872
-2018/05/14 14:18:18 [notice] 5#0: pid:5|from:1526278638|to:1526278659|accounting_id:INDEX|requests:4849|bytes_in:421863|bytes_out:1857167|latency_ms:0|upstream_latency_ms:0|301:4849
 
-# Stream
+# HTTP (zone mode: aggregated across all workers)
+2018/05/14 14:18:18 [notice] 5#0: workers:2|from:1526278638|to:1526278659|accounting_id:INDEX|requests:4849|bytes_in:421863|bytes_out:1857167|latency_ms:0|upstream_latency_ms:0|301:4849
+
+# Stream (per-process mode)
 2018/05/14 14:18:22 [notice] 5#0: pid:5|from:1526278642|to:1526278659|accounting_id:TCP_PROXY_ECHO|sessions:9723|bytes_in:860343|bytes_out:2587967|latency_ms:4133|upstream_latency_ms:3810|200:9723
 ```
 
@@ -198,6 +262,7 @@ which contains a list of key-values.
 |  key name       |  meanings of values |
 |-----------------|---------------------|
 | `pid`           | pid of nginx worker process |
+| `workers`       | number of active worker processes (only when `accounting_zone` is configured) |
 | `from` / `to`   | metric was collected from the `period` between these timestamps |
 | `accounting_id` | identify for the accounting unit, set by `accounting_id` directive |
 | `requests`      | count of total requests processed in current period (HTTP module only) |
@@ -230,14 +295,16 @@ make && make install
 
 
 # to build as `dynamic` module
-# both HTTP and STREAM module, target module file name is ngx_http_accounting_module.so
-./configure --prefix=/opt/nginx --with-stream --add-dynamic-module=traffic-accounting-nginx-module
+# both HTTP and STREAM modules
+./configure --prefix=/opt/nginx --with-stream \
+    --add-dynamic-module=traffic-accounting-nginx-module \
+    --add-dynamic-module=traffic-accounting-nginx-module/stream
 
-# only HTTP module, target module file name is ngx_http_accounting_module.so
+# only HTTP module (produces ngx_http_accounting_module.so)
 #./configure --prefix=/opt/nginx --add-dynamic-module=traffic-accounting-nginx-module
 
-# only STREAM module, target module file name is ngx_stream_accounting_module.so
-#./configure --prefix=/opt/nginx --without-http --add-dynamic-module=traffic-accounting-nginx-module
+# only STREAM module (produces ngx_stream_accounting_module.so)
+#./configure --prefix=/opt/nginx --with-stream --add-dynamic-module=traffic-accounting-nginx-module/stream
 
 make modules
 ```
@@ -246,11 +313,9 @@ make modules
 
 Add the following lines at the beginning of `nginx.conf`:
 
-```
+```nginx
 load_module modules/ngx_http_accounting_module.so;
-
-# for STREAM only build
-#load_module modules/ngx_stream_accounting_module.so;
+load_module modules/ngx_stream_accounting_module.so;    # (optional) stream accounting
 ```
 
 ### Step 3
@@ -283,6 +348,9 @@ See [samples/](samples/) for examples.
 # Branches
 
 * master : main development branch.
+* next/v4 : next version development branch.
+* v3-freeze-20260520 : frozen snapshot of v3 codebase. works with nginx >= 1.9.0.
+* tag v3.0 : v3.0 release.
 * tag v0.1 or v2-freeze-20110526 : legacy release. works with nginx version(0.7.xx, 0.8.xx), nginx 0.9 is not tested. didn't work with nginx above 1.0.x.
 
 # Contributing
