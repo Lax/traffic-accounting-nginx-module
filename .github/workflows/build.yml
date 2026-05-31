@@ -31,11 +31,15 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             modules/ngx_http_accounting_module.so
             modules/ngx_stream_accounting_module.so
             modules/ngx_http_accounting_module-with-stream.so
           body: |
-            ## v2.0.1
+            ## ${{ github.ref_name }}
+
+            ![Test](https://img.shields.io/github/actions/workflow/status/Lax/traffic-accounting-nginx-module/test.yml?branch=${{ github.ref_name }}&label=${{ github.ref_name }})
+            ![Build and Release](https://img.shields.io/github/actions/workflow/status/Lax/traffic-accounting-nginx-module/build.yml?branch=${{ github.ref_name }}&label=${{ github.ref_name }})
 
             Pre-built nginx module binaries built with Docker and GitHub Actions.
