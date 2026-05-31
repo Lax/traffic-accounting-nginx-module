@@ -30,6 +30,8 @@ fi
 TESTS=""
 if [[ "$FILTER_TEST" ]]; then
     for t in ${FILTER_TEST//,/ }; do TESTS="$TESTS $t"; done
+else
+    TESTS="v01 v02 v03 v04 v05"
 fi
 
 for mode in $MODES; do
