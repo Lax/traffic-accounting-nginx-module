@@ -39,4 +39,7 @@ jobs:
           body: |
             ## ${{ github.ref_name }}
 
+            ![Test](https://img.shields.io/github/actions/workflow/status/Lax/traffic-accounting-nginx-module/test.yml?branch=${{ github.ref_name }}&label=Test)
+            ![Build and Release](https://img.shields.io/github/actions/workflow/status/Lax/traffic-accounting-nginx-module/build.yml?branch=${{ github.ref_name }}&label=Build%20and%20Release)
+
             Pre-built nginx module binaries built with Docker and GitHub Actions.
