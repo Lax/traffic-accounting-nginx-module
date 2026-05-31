@@ -16,7 +16,7 @@ FROM base AS both
 ARG NGX_VER
 RUN ./configure --prefix=/opt/nginx \
     --with-stream --with-compat \
-    --add-dynamic-module=traffic-accounting-nginx-module \
+    --add-dynamic-module=traffic-accounting-nginx-module --add-dynamic-module=traffic-accounting-nginx-module/stream \
     && make modules
 
 FROM base AS http-only
@@ -30,7 +30,7 @@ FROM base AS stream-only
 ARG NGX_VER
 RUN ./configure --prefix=/opt/nginx \
     --without-http --with-stream --with-compat \
-    --add-dynamic-module=traffic-accounting-nginx-module \
+    --add-dynamic-module=traffic-accounting-nginx-module/stream \
     && make modules
 
 FROM scratch AS modules
