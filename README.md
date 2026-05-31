@@ -168,6 +168,14 @@ docker-compose build
 docker-compose up -d
 ```
 
+This will start three nginx services demonstrating different module compilation variants:
+
+| Service | Compilation | Nginx Config | Host Ports |
+|---------|-------------|--------------|------------|
+| `nginx-http` | HTTP only | `nginx.http-only.conf` | 8080, 8888 |
+| `nginx-stream` | Stream only | `nginx.stream-only.conf` | 9999 |
+| `nginx-combined` | HTTP + Stream | `nginx.conf` | 18080, 18888, 19999 |
+
 Open Grafana (address: `http://localhost:3000`) in your browser.
 
 Create and configurate elasticsearch datasource with options:
