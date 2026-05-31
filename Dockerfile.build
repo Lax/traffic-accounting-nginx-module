@@ -1,16 +1,14 @@
-FROM alpine:3.18 AS builder
+FROM alpine:3.20 AS builder
 
-RUN apk add --no-cache gcc make pcre-dev zlib-dev openssl-dev linux-headers curl tar
+RUN apk add --no-cache build-base pcre-dev zlib-dev openssl-dev linux-headers curl tar
 
-ENV NGX_VER 1.26.2
-ENV WORKDIR /src
-ENV NGX_SRC_DIR ${WORKDIR}/nginx-${NGX_VER}
+ENV NGX_VER=1.26.2
 
-WORKDIR ${WORKDIR}
+WORKDIR /src
 
 RUN curl -sL http://nginx.org/download/nginx-${NGX_VER}.tar.gz | tar xz
 
-WORKDIR ${NGX_SRC_DIR}
+WORKDIR /src/nginx-${NGX_VER}
 COPY . traffic-accounting-nginx-module
 
 RUN ./configure --prefix=/opt/nginx \
@@ -20,5 +18,5 @@ RUN ./configure --prefix=/opt/nginx \
     && make modules
 
 FROM scratch AS modules
-COPY --from=builder ${NGX_SRC_DIR}/objs/ngx_http_accounting_module.so /
-COPY --from=builder ${NGX_SRC_DIR}/objs/ngx_stream_accounting_module.so /
+COPY --from=builder /src/nginx-${NGX_VER}/objs/ngx_http_accounting_module.so /
+COPY --from=builder /src/nginx-${NGX_VER}/objs/ngx_stream_accounting_module.so /
