@@ -127,7 +127,7 @@ ngx_http_accounting_process_init(ngx_cycle_t *cycle)
     time_t                             perturb_factor = 1000;
 
     amcf = ngx_http_cycle_get_module_main_conf(cycle, ngx_http_accounting_module);
-    if (!amcf->enable) {
+    if (amcf == NULL || !amcf->enable) {
         return NGX_OK;
     }
 
