@@ -1,8 +1,9 @@
+ARG NGX_VER=1.26.2
+
 FROM alpine:3.20 AS builder
+ARG NGX_VER
 
 RUN apk add --no-cache build-base pcre-dev zlib-dev openssl-dev linux-headers curl tar
-
-ENV NGX_VER=1.26.2
 
 WORKDIR /src
 
@@ -18,5 +19,6 @@ RUN ./configure --prefix=/opt/nginx \
     && make modules
 
 FROM scratch AS modules
+ARG NGX_VER
 COPY --from=builder /src/nginx-${NGX_VER}/objs/ngx_http_accounting_module.so /
 COPY --from=builder /src/nginx-${NGX_VER}/objs/ngx_stream_accounting_module.so /
