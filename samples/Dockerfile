@@ -39,7 +39,7 @@ RUN apk add --no-cache pcre zlib openssl
 
 COPY --from=builder /opt/nginx /opt/nginx
 
-COPY samples/nginx.conf /opt/nginx/conf/nginx.both.conf
+COPY samples/nginx.conf /opt/nginx/conf/nginx.combined.conf
 COPY samples/nginx.http-only.conf /opt/nginx/conf/
 COPY samples/nginx.stream-only.conf /opt/nginx/conf/
 COPY samples/http.conf /opt/nginx/conf/
@@ -50,7 +50,7 @@ RUN if [ "$MODULE_VARIANT" = "http-only" ]; then \
     elif [ "$MODULE_VARIANT" = "stream-only" ]; then \
         CONF=nginx.stream-only.conf; \
     else \
-        CONF=nginx.both.conf; \
+        CONF=nginx.combined.conf; \
     fi && \
     cp /opt/nginx/conf/$CONF /opt/nginx/conf/nginx.conf && \
     ln -sf /dev/stdout /opt/nginx/logs/access.log && \
