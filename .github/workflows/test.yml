@@ -1,0 +1,12 @@
+name: Test
+on: [push, workflow_dispatch]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build test image
+        run: docker build -f test/Dockerfile.test -t acc-test:rt .
+      - name: Run all tests
+        run: bash test/run.sh --skip-build
