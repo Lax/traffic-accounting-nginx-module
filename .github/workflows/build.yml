@@ -1,0 +1,41 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build modules
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.build
+          outputs: type=local,dest=modules
+          target: modules
+
+      - name: Create combined module
+        run: cp modules/ngx_http_accounting_module.so modules/ngx_http_accounting_module-with-stream.so
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            modules/ngx_http_accounting_module.so
+            modules/ngx_stream_accounting_module.so
+            modules/ngx_http_accounting_module-with-stream.so
+          body: |
+            ## v2.0.1
+
+            Pre-built nginx module binaries built with Docker and GitHub Actions.
