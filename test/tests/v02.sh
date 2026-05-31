@@ -1,3 +1,4 @@
+# V02: validate accounting on in stream {}
 test_v02() {
     local mode=$1
 

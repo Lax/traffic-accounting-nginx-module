@@ -1,3 +1,4 @@
+# R03: runtime — HTTP + Stream together produce accounting logs
 test_r03() {
     local mode=$1
 

@@ -1,3 +1,4 @@
+# V04: validate accounting_log /dev/stderr
 test_v04() {
     local mode=$1
 

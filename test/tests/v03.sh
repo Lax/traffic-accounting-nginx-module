@@ -1,3 +1,4 @@
+# V03a: valid accounting_interval 30 accepted; V03b: invalid accounting_interval abc rejected
 test_v03() {
     local mode=$1
 

@@ -1,3 +1,4 @@
+# R02: runtime — Stream session triggers accounting log
 test_r02() {
     local mode=$1
 

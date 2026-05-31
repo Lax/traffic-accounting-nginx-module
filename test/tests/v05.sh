@@ -1,3 +1,4 @@
+# V05a: accounting_id at http server+location; V05b: accounting_id in stream server
 test_v05() {
     local mode=$1
 

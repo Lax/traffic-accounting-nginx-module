@@ -1,3 +1,4 @@
+# E01: error — duplicate load_module rejected
 test_e01() {
     local mode=$1
 
