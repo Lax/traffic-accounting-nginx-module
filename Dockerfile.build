@@ -1,6 +1,6 @@
 ARG NGX_VER=1.26.2
 
-FROM alpine:3.20 AS builder
+FROM alpine:3.20 AS base
 ARG NGX_VER
 
 RUN apk add --no-cache build-base pcre-dev zlib-dev openssl-dev linux-headers curl tar
@@ -12,13 +12,29 @@ RUN curl -sL http://nginx.org/download/nginx-${NGX_VER}.tar.gz | tar xz
 WORKDIR /src/nginx-${NGX_VER}
 COPY . traffic-accounting-nginx-module
 
+FROM base AS both
+ARG NGX_VER
 RUN ./configure --prefix=/opt/nginx \
-    --with-stream \
+    --with-stream --with-compat \
+    --add-dynamic-module=traffic-accounting-nginx-module \
+    && make modules
+
+FROM base AS http-only
+ARG NGX_VER
+RUN ./configure --prefix=/opt/nginx \
     --with-compat \
+    --add-dynamic-module=traffic-accounting-nginx-module \
+    && make modules
+
+FROM base AS stream-only
+ARG NGX_VER
+RUN ./configure --prefix=/opt/nginx \
+    --without-http --with-stream --with-compat \
     --add-dynamic-module=traffic-accounting-nginx-module \
     && make modules
 
 FROM scratch AS modules
 ARG NGX_VER
-COPY --from=builder /src/nginx-${NGX_VER}/objs/ngx_http_accounting_module.so /
-COPY --from=builder /src/nginx-${NGX_VER}/objs/ngx_stream_accounting_module.so /
+COPY --from=both /src/nginx-${NGX_VER}/objs/ngx_http_accounting_module.so /ngx_http_accounting_module-with-stream.so
+COPY --from=http-only /src/nginx-${NGX_VER}/objs/ngx_http_accounting_module.so /ngx_http_accounting_module.so
+COPY --from=stream-only /src/nginx-${NGX_VER}/objs/ngx_stream_accounting_module.so /ngx_stream_accounting_module.so
