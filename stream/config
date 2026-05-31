@@ -1,0 +1,32 @@
+ngx_addon_name="ngx_stream_accounting_module"
+
+TA_SRC=$ngx_addon_dir/../src
+
+TRAFFIC_ACCOUNTING_DEPS=" \
+    $TA_SRC/ngx_traffic_accounting.h \
+    $TA_SRC/ngx_traffic_accounting_module.h \
+    "
+TRAFFIC_ACCOUNTING_SRCS=" \
+    $TA_SRC/ngx_traffic_accounting_log.c \
+    $TA_SRC/ngx_traffic_accounting_module.c \
+    $TA_SRC/ngx_traffic_accounting_module_conf.c \
+    $TA_SRC/ngx_traffic_accounting_period_metrics.c \
+    $TA_SRC/ngx_traffic_accounting_statuses.c \
+    "
+
+STREAM_ACCOUNTING_DEPS=" \
+    $TA_SRC/stream/ngx_stream_accounting_module.h \
+    "
+STREAM_ACCOUNTING_SRCS=" \
+    $TA_SRC/stream/ngx_stream_accounting_module.c \
+    $TA_SRC/stream/ngx_stream_accounting_statuses.c \
+    "
+
+ngx_module_type=STREAM
+ngx_module_name="ngx_stream_accounting_module"
+ngx_module_incs=$TA_SRC
+ngx_module_deps=$TRAFFIC_ACCOUNTING_DEPS$STREAM_ACCOUNTING_DEPS
+ngx_module_srcs=$TRAFFIC_ACCOUNTING_SRCS$STREAM_ACCOUNTING_SRCS
+ngx_module_libs=
+
+. auto/module

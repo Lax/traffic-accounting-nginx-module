@@ -1,0 +1,22 @@
+ARG NGX_VER=1.26.2
+
+FROM alpine:3.20 AS base
+ARG NGX_VER
+RUN apk add --no-cache build-base pcre-dev zlib-dev openssl-dev linux-headers curl tar
+WORKDIR /src
+RUN curl -sL http://nginx.org/download/nginx-${NGX_VER}.tar.gz | tar xz
+WORKDIR /src/nginx-${NGX_VER}
+COPY . traffic-accounting-nginx-module
+
+FROM base AS compile
+RUN ./configure --prefix=/opt/nginx --with-stream --with-compat \
+    --add-dynamic-module=traffic-accounting-nginx-module \
+    --add-dynamic-module=traffic-accounting-nginx-module/stream \
+    && make -s -j$(nproc) install \
+    && cp /opt/nginx/modules/ngx_http_accounting_module.so \
+          /opt/nginx/modules/ngx_http_accounting_module-with-stream.so
+
+FROM alpine:3.20 AS rt
+RUN apk add --no-cache pcre zlib
+COPY --from=compile /opt/nginx /opt/nginx
+STOPSIGNAL SIGTERM
