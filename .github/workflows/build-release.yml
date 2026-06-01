@@ -160,7 +160,7 @@ jobs:
       - name: Extract .so files
         run: |
           mkdir -p dist
-          docker create --name extract nginx-module-builder
+          docker create --name extract nginx-module-builder dummy
           docker cp extract:/build/artifacts/. dist/
           docker rm extract
 
