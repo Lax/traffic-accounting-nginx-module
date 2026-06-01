@@ -1,0 +1,15 @@
+module: traffic-accounting-nginx-module
+
+nginx_branches:
+  - mainline
+  - stable
+
+variants:
+  - name: combined
+    configure_flags: --with-stream
+
+  - name: http-only
+    configure_flags: ""
+
+  - name: stream-only
+    configure_flags: --without-http --with-stream
