@@ -40,4 +40,4 @@ RUN mkdir -p /build/artifacts && \
     fi
 
 FROM scratch AS artifacts
-COPY --from=builder /build/artifacts/ /
+COPY --from=builder /build/artifacts /build/artifacts
