@@ -6,8 +6,6 @@ on:
   push:
     tags:
       - '*-v*'
-  schedule:
-    - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
       module:
