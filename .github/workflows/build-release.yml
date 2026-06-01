@@ -72,12 +72,14 @@ jobs:
 
           elif [ "$EVENT" = "schedule" ]; then
             LAST_COMMIT=$(yq -r '.last_build.commit // ""' build-config.yml)
+            LAST_TAG=$(yq -r '.last_build.version // ""' build-config.yml)
             git submodule update --remote "$MODULE"
             cd "$MODULE"
+            git fetch --tags origin
             CURRENT_COMMIT=$(git rev-parse HEAD)
             TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "")
             cd ..
-            if [ "$CURRENT_COMMIT" = "$LAST_COMMIT" ]; then
+            if [ "$CURRENT_COMMIT" = "$LAST_COMMIT" ] && [ "$TAG" = "$LAST_TAG" ]; then
               echo "should_build=false" >> $GITHUB_OUTPUT
               exit 0
             fi
@@ -248,5 +250,7 @@ jobs:
 
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: update build-config.yml to ${{ needs.prepare.outputs.sub_version }} [skip ci]"
-          file_pattern: build-config.yml
+          commit_message: "chore: update build-config.yml and submodule to ${{ needs.prepare.outputs.sub_version }} [skip ci]"
+          file_pattern: |
+            build-config.yml
+            ${{ needs.prepare.outputs.module_name }}
