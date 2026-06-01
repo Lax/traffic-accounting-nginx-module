@@ -1,0 +1,4 @@
+[submodule "traffic-accounting-nginx-module"]
+	path = traffic-accounting-nginx-module
+	url = https://github.com/Lax/traffic-accounting-nginx-module.git
+	branch = master
