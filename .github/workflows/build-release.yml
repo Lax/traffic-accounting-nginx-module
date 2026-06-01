@@ -1,0 +1,252 @@
+name: Build and Release
+
+on:
+  repository_dispatch:
+    types: [module-updated]
+  push:
+    tags:
+      - '*-v*'
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      module:
+        description: 'Module name (leave empty to use build-config.yml)'
+        required: false
+        default: ''
+      version:
+        description: 'Version (leave empty for auto/snapshot)'
+        required: false
+        default: ''
+      commit:
+        description: 'Commit SHA (leave empty for latest)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.detect.outputs.should_build }}
+      module_name: ${{ steps.detect.outputs.module_name }}
+      tag_version: ${{ steps.detect.outputs.tag_version }}
+      sub_version: ${{ steps.detect.outputs.sub_version }}
+      is_prerelease: ${{ steps.detect.outputs.is_prerelease }}
+      commit: ${{ steps.detect.outputs.commit }}
+      branches: ${{ steps.detect.outputs.branches }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          token: ${{ secrets.BUILDER_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Detect version and generate .build-variants
+        id: detect
+        run: |
+          MODULE=$(yq -r '.module' build-config.yml)
+          BRANCHES=$(yq -o=json -I=0 '.nginx_branches' build-config.yml)
+
+          while IFS='|' read -r name flags; do
+            echo "${MODULE}|${name}|${flags}"
+          done < <(yq -r '.variants[] | "\(.name)|\(.configure_flags // "")"' build-config.yml) \
+            > .build-variants
+
+          EVENT="${{ github.event_name }}"
+
+          if [ "$EVENT" = "repository_dispatch" ]; then
+            VERSION="${{ github.event.client_payload.version }}"
+            COMMIT="${{ github.event.client_payload.commit }}"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+
+          elif [ "$EVENT" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+            VERSION="${TAG#${MODULE}-}"
+            cd "$MODULE"
+            COMMIT=$(git rev-parse HEAD)
+            cd ..
+            echo "should_build=true" >> $GITHUB_OUTPUT
+
+          elif [ "$EVENT" = "schedule" ]; then
+            LAST_COMMIT=$(yq -r '.last_build.commit // ""' build-config.yml)
+            git submodule update --remote "$MODULE"
+            cd "$MODULE"
+            CURRENT_COMMIT=$(git rev-parse HEAD)
+            TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "")
+            cd ..
+            if [ "$CURRENT_COMMIT" = "$LAST_COMMIT" ]; then
+              echo "should_build=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            VERSION="${TAG:-v$(date +%Y%m%d)-snapshot}"
+            COMMIT="$CURRENT_COMMIT"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+
+          else
+            VERSION_INPUT="${{ github.event.inputs.version }}"
+            COMMIT_INPUT="${{ github.event.inputs.commit }}"
+            if [ -n "$VERSION_INPUT" ]; then
+              VERSION="$VERSION_INPUT"
+            else
+              cd "$MODULE"
+              TAG=$(git describe --tags --exact-match HEAD 2>/dev/null || echo "")
+              cd ..
+              VERSION="${TAG:-v$(date +%Y%m%d)-snapshot}"
+            fi
+            if [ -n "$COMMIT_INPUT" ]; then
+              COMMIT="$COMMIT_INPUT"
+            else
+              cd "$MODULE"
+              COMMIT=$(git rev-parse HEAD)
+              cd ..
+            fi
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "module_name=$MODULE" >> $GITHUB_OUTPUT
+          echo "branches=$BRANCHES" >> $GITHUB_OUTPUT
+          echo "tag_version=${MODULE}-${VERSION}" >> $GITHUB_OUTPUT
+          echo "sub_version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "commit=${COMMIT}" >> $GITHUB_OUTPUT
+
+          case "$VERSION" in
+            *-snapshot) echo "is_prerelease=true" >> $GITHUB_OUTPUT ;;
+            *)          echo "is_prerelease=false" >> $GITHUB_OUTPUT ;;
+          esac
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
+    strategy:
+      matrix:
+        nginx-branch: ${{ fromJSON(needs.prepare.outputs.branches) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          token: ${{ secrets.BUILDER_PAT || secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Get nginx version
+        id: nginx
+        run: |
+          NGX_VER=$(docker run --rm --entrypoint sh \
+            "nginx:${{ matrix.nginx-branch }}-alpine" \
+            -c 'nginx -v 2>&1' | cut -d/ -f2)
+          echo "version=${NGX_VER}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate .build-variants
+        run: |
+          MODULE="${{ needs.prepare.outputs.module_name }}"
+          while IFS='|' read -r name flags; do
+            echo "${MODULE}|${name}|${flags}"
+          done < <(yq -r '.variants[] | "\(.name)|\(.configure_flags // "")"' build-config.yml) \
+            > .build-variants
+
+      - name: Build in Docker
+        run: |
+          docker build \
+            --build-arg NGINX_BRANCH=${{ matrix.nginx-branch }} \
+            --build-arg MODULE_NAME="${{ needs.prepare.outputs.module_name }}" \
+            -t nginx-module-builder \
+            .
+
+      - name: Extract .so files
+        run: |
+          mkdir -p dist
+          docker create --name extract nginx-module-builder
+          docker cp extract:/build/artifacts/. dist/
+          docker rm extract
+
+      - name: Rename .so with nginx version
+        run: |
+          cd dist
+          for f in *.so; do
+            [ -f "$f" ] || continue
+            stem="${f%.so}"
+            mv "$f" "${stem}-nginx-${{ steps.nginx.outputs.version }}.so"
+          done
+          ls -la
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.prepare.outputs.module_name }}-so-${{ matrix.nginx-branch }}
+          path: dist/
+
+  release:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.BUILDER_PAT || secrets.GITHUB_TOKEN }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ${{ needs.prepare.outputs.module_name }}-so-*
+          path: dist/
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        run: |
+          cd dist
+          sha256sum *.so > SHA256SUMS
+
+      - name: Generate release body
+        id: body
+        run: |
+          MODULE="${{ needs.prepare.outputs.module_name }}"
+          VER="${{ needs.prepare.outputs.sub_version }}"
+          TAG="${{ needs.prepare.outputs.tag_version }}"
+          {
+            echo "## $MODULE v$VER"
+            echo ""
+            echo "| Nginx | 文件 |"
+            echo "|---|---|"
+            for f in dist/*.so; do
+              BASENAME=$(basename "$f")
+              URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${BASENAME}"
+              NGX_VER=$(echo "$BASENAME" | sed 's/.*-nginx-\(.*\)\.so/\1/')
+              echo "| $NGX_VER | [$BASENAME]($URL) |"
+            done
+            echo ""
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+          } > dist/release-body.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag_version }}
+          name: ${{ needs.prepare.outputs.tag_version }}
+          body_path: dist/release-body.md
+          prerelease: ${{ needs.prepare.outputs.is_prerelease }}
+          files: |
+            dist/*.so
+            dist/SHA256SUMS
+          token: ${{ secrets.BUILDER_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Update build-config.yml
+        run: |
+          VERSION="${{ needs.prepare.outputs.sub_version }}"
+          COMMIT="${{ needs.prepare.outputs.commit }}"
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          NGX_STABLE=$(docker run --rm --entrypoint sh \
+            nginx:stable-alpine -c 'nginx -v 2>&1' | cut -d/ -f2)
+          NGX_MAINLINE=$(docker run --rm --entrypoint sh \
+            nginx:mainline-alpine -c 'nginx -v 2>&1' | cut -d/ -f2)
+          yq -i ".last_build = {\"version\": \"$VERSION\", \"commit\": \"$COMMIT\", \
+            \"date\": \"$DATE\", \"nginx_versions\": {\"stable\": \"$NGX_STABLE\", \
+            \"mainline\": \"$NGX_MAINLINE\"}}" build-config.yml
+
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: update build-config.yml to ${{ needs.prepare.outputs.sub_version }} [skip ci]"
+          file_pattern: build-config.yml
