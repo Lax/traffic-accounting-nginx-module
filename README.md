@@ -39,6 +39,7 @@ place them into `./modules` sub-directory of `nginx`.
 Add following lines at the beginning of `nginx.conf`:
 
 ```
+# for combined or HTTP-only build
 load_module modules/ngx_http_accounting_module.so;
 ```
 
@@ -237,7 +238,7 @@ make && make install
 #./configure --prefix=/opt/nginx --add-dynamic-module=traffic-accounting-nginx-module
 
 # only STREAM module, target module file name is ngx_stream_accounting_module.so
-#./configure --prefix=/opt/nginx --without-http --add-dynamic-module=traffic-accounting-nginx-module
+#./configure --prefix=/opt/nginx --without-http --with-stream --add-dynamic-module=traffic-accounting-nginx-module
 
 make modules
 ```
@@ -247,9 +248,10 @@ make modules
 Add the following lines at the beginning of `nginx.conf`:
 
 ```
+# for combined or HTTP-only build
 load_module modules/ngx_http_accounting_module.so;
 
-# for STREAM only build
+# for Stream-only build
 #load_module modules/ngx_stream_accounting_module.so;
 ```
 
