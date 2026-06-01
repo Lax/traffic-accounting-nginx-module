@@ -1,53 +1,84 @@
-FROM centos as builder
+ARG MODULE_VARIANT=combined
 
-RUN yum install gcc make pcre-devel zlib-devel openssl-devel -y \
-    && yum clean all
+ARG BUILDER_IMAGE=ghcr.io/lax/traffic-accounting-nginx-module/builder:alpine-3.20
 
-ENV PREFIX /opt/nginx
-ENV NGX_VER 1.16.0
+FROM ${BUILDER_IMAGE} AS builder
+ARG MODULE_VARIANT
+ARG NGINX_VERSION=1.31.1
+ARG ECHO_NGINX_MODULE_VERSION=echo-nginx-module-v20260601-snapshot
+ARG APK_MIRROR
 
-ENV WORKDIR /src
-ENV NGX_SRC_DIR ${WORKDIR}/nginx-${NGX_VER}
-ENV NGX_URL http://nginx.org/download/nginx-${NGX_VER}.tar.gz
-ENV NGX_HTTP_ECHO_URL https://github.com/openresty/echo-nginx-module/archive/master.tar.gz
+RUN if [ -n "$APK_MIRROR" ]; then \
+        sed -i "s|dl-cdn.alpinelinux.org|${APK_MIRROR}|g" /etc/apk/repositories; \
+    fi
 
-WORKDIR ${WORKDIR}
+WORKDIR /src
 
-RUN tar zxf `curl -SLOs -w'%{filename_effective}' ${NGX_URL}` -C ${WORKDIR} \
-    && tar zxf `curl -SLJOs -w'%{filename_effective}' ${NGX_HTTP_ECHO_URL}` -C ${NGX_SRC_DIR}
+RUN curl -sL http://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz | tar xz
 
-WORKDIR ${NGX_SRC_DIR}
-ADD . traffic-accounting-nginx-module
-RUN ./configure --prefix=${PREFIX} \
-    --with-stream \
-    --add-dynamic-module=traffic-accounting-nginx-module \
-    --add-dynamic-module=echo-nginx-module-master \
-    --http-log-path=/dev/stdout \
-    --error-log-path=/dev/stderr \
+WORKDIR /src/nginx-${NGINX_VERSION}
+COPY config traffic-accounting-nginx-module/config
+COPY src traffic-accounting-nginx-module/src
+
+RUN CONF_FLAGS="--with-compat" && \
+    if [ "$MODULE_VARIANT" = "stream-only" ]; then \
+        CONF_FLAGS="$CONF_FLAGS --without-http --with-stream"; \
+    elif [ "$MODULE_VARIANT" = "combined" ]; then \
+        CONF_FLAGS="$CONF_FLAGS --with-stream"; \
+    fi && \
+    ./configure --prefix=/opt/nginx \
+        $CONF_FLAGS \
+        --add-dynamic-module=traffic-accounting-nginx-module \
+        --http-log-path=/dev/stdout \
+        --error-log-path=/dev/stderr \
     && make -s && make -s install
 
+RUN if [ "$MODULE_VARIANT" != "stream-only" ]; then \
+        mkdir -p /opt/nginx/modules && \
+        curl -sL -o /opt/nginx/modules/ngx_http_echo_module.so \
+        https://github.com/Lax/echo-nginx-module/releases/download/${ECHO_NGINX_MODULE_VERSION}/ngx_http_echo_module-nginx-${NGINX_VERSION}.so; \
+    fi
 
-FROM centos
+FROM alpine:3.20
+ARG MODULE_VARIANT
+ARG APK_MIRROR
 
-ENV PREFIX /opt/nginx
-ENV CONFIG_VER $(date)
+RUN if [ -n "$APK_MIRROR" ]; then \
+        sed -i "s|dl-cdn.alpinelinux.org|${APK_MIRROR}|g" /etc/apk/repositories; \
+    fi
 
-COPY --from=builder ${PREFIX} ${PREFIX}
+RUN apk add --no-cache pcre zlib openssl
 
-WORKDIR ${PREFIX}
+COPY --from=builder /opt/nginx /opt/nginx
 
-RUN ln -sf /dev/stdout ${PREFIX}/logs/access.log \
-    && ln -sf /dev/stderr ${PREFIX}/logs/http-accounting.log \
-    && ln -sf /dev/stderr ${PREFIX}/logs/stream-accounting.log \
-    && ln -sf /dev/stderr ${PREFIX}/logs/error.log \
-    && ln -sf ../usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+COPY samples/nginx.conf /opt/nginx/conf/nginx.combined.conf
+COPY samples/nginx.http-only.conf /opt/nginx/conf/
+COPY samples/nginx.stream-only.conf /opt/nginx/conf/
+COPY samples/http.conf /opt/nginx/conf/
+COPY samples/stream.conf /opt/nginx/conf/
 
-ADD samples/nginx.conf ${PREFIX}/conf/nginx.conf
-ADD samples/http.conf ${PREFIX}/conf/http.conf
-ADD samples/stream.conf ${PREFIX}/conf/stream.conf
+RUN mkdir -p /opt/nginx/logs && \
+    if [ "$MODULE_VARIANT" = "http-only" ]; then \
+        CONF=nginx.http-only.conf; \
+    elif [ "$MODULE_VARIANT" = "stream-only" ]; then \
+        CONF=nginx.stream-only.conf; \
+    else \
+        CONF=nginx.combined.conf; \
+    fi && \
+    cp /opt/nginx/conf/$CONF /opt/nginx/conf/nginx.conf && \
+    ln -sf /dev/stdout /opt/nginx/logs/access.log && \
+    ln -sf /dev/stderr /opt/nginx/logs/http-accounting.log && \
+    ln -sf /dev/stderr /opt/nginx/logs/stream-accounting.log && \
+    ln -sf /dev/stderr /opt/nginx/logs/error.log
 
-EXPOSE 8080
-EXPOSE 8888
-EXPOSE 9999
+RUN adduser -D nginx && \
+    chown -R nginx:nginx /opt/nginx/logs /opt/nginx/conf
+
+WORKDIR /opt/nginx
+
+USER nginx
+
+EXPOSE 8080 8888 9999
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=2 CMD wget -qO- http://localhost:8080/ || exit 1
 STOPSIGNAL SIGTERM
-ENTRYPOINT ["./sbin/nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/opt/nginx/sbin/nginx", "-g", "daemon off;"]

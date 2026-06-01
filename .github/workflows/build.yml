@@ -4,9 +4,11 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
 
 permissions:
   contents: write
+  packages: read
 
 jobs:
   build:
@@ -17,6 +19,13 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build modules
         uses: docker/build-push-action@v5
         with:
@@ -26,6 +35,7 @@ jobs:
           target: modules
 
       - name: Create Release
+        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}

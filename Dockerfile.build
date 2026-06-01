@@ -1,9 +1,8 @@
-ARG NGX_VER=1.26.2
+ARG NGX_VER=1.31.1
+ARG BUILDER_IMAGE=ghcr.io/lax/traffic-accounting-nginx-module/builder:alpine-3.20
 
-FROM alpine:3.20 AS base
+FROM ${BUILDER_IMAGE} AS base
 ARG NGX_VER
-
-RUN apk add --no-cache build-base pcre-dev zlib-dev openssl-dev linux-headers curl tar
 
 WORKDIR /src
 
@@ -12,21 +11,21 @@ RUN curl -sL http://nginx.org/download/nginx-${NGX_VER}.tar.gz | tar xz
 WORKDIR /src/nginx-${NGX_VER}
 COPY . traffic-accounting-nginx-module
 
-FROM base AS both
+FROM base AS combined-build
 ARG NGX_VER
 RUN ./configure --prefix=/opt/nginx \
     --with-stream --with-compat \
     --add-dynamic-module=traffic-accounting-nginx-module \
     && make modules
 
-FROM base AS http-only
+FROM base AS http-only-build
 ARG NGX_VER
 RUN ./configure --prefix=/opt/nginx \
     --with-compat \
     --add-dynamic-module=traffic-accounting-nginx-module \
     && make modules
 
-FROM base AS stream-only
+FROM base AS stream-only-build
 ARG NGX_VER
 RUN ./configure --prefix=/opt/nginx \
     --without-http --with-stream --with-compat \
@@ -35,6 +34,6 @@ RUN ./configure --prefix=/opt/nginx \
 
 FROM scratch AS modules
 ARG NGX_VER
-COPY --from=both /src/nginx-${NGX_VER}/objs/ngx_http_accounting_module.so /ngx_http_accounting_module-with-stream.so
-COPY --from=http-only /src/nginx-${NGX_VER}/objs/ngx_http_accounting_module.so /ngx_http_accounting_module.so
-COPY --from=stream-only /src/nginx-${NGX_VER}/objs/ngx_stream_accounting_module.so /ngx_stream_accounting_module.so
+COPY --from=combined-build /src/nginx-${NGX_VER}/objs/ngx_http_accounting_module.so /ngx_http_accounting_module-with-stream.so
+COPY --from=http-only-build /src/nginx-${NGX_VER}/objs/ngx_http_accounting_module.so /ngx_http_accounting_module.so
+COPY --from=stream-only-build /src/nginx-${NGX_VER}/objs/ngx_stream_accounting_module.so /ngx_stream_accounting_module.so

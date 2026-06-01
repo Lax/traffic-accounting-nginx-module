@@ -1,0 +1,3 @@
+FROM alpine:3.20
+
+RUN apk add --no-cache build-base pcre-dev zlib-dev openssl-dev linux-headers curl tar

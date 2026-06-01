@@ -58,18 +58,51 @@ services:
     depends_on:
       - elasticsearch
 
-  nginx:
-    container_name: nginx_accounting
+  nginx-http:
+    container_name: traffic_accounting_http
     build:
       context: .
       dockerfile: samples/Dockerfile
+      args:
+        MODULE_VARIANT: http-only
     networks:
       - nginx
       - elk
     ports:
-      - 8080:8080
-      - 8888:8888
-      - 9999:9999
+      - "8080:8080"
+      - "8888:8888"
+    depends_on:
+      - logstash
+
+  nginx-stream:
+    container_name: traffic_accounting_stream
+    build:
+      context: .
+      dockerfile: samples/Dockerfile
+      args:
+        MODULE_VARIANT: stream-only
+    networks:
+      - nginx
+      - elk
+    ports:
+      - "9999:9999"
+    depends_on:
+      - logstash
+
+  nginx-combined:
+    container_name: traffic_accounting_combined
+    build:
+      context: .
+      dockerfile: samples/Dockerfile
+      args:
+        MODULE_VARIANT: combined
+    networks:
+      - nginx
+      - elk
+    ports:
+      - "18080:8080"
+      - "18888:8888"
+      - "19999:9999"
     depends_on:
       - logstash
 
