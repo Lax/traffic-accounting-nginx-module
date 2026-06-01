@@ -1,0 +1,61 @@
+ARG NGX_VER=1.31.1
+
+FROM alpine:3.20 AS base
+ARG NGX_VER
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories \
+ && apk add --no-cache build-base pcre-dev zlib-dev openssl-dev linux-headers curl tar
+WORKDIR /src
+RUN curl -sL http://nginx.org/download/nginx-${NGX_VER}.tar.gz | tar xz
+WORKDIR /src/nginx-${NGX_VER}
+COPY . traffic-accounting-nginx-module
+
+FROM base AS build-combined
+RUN ./configure --prefix=/opt/nginx --with-compat --with-stream \
+    --add-dynamic-module=traffic-accounting-nginx-module \
+    && make -j$(nproc) install
+
+FROM base AS build-http-only
+RUN ./configure --prefix=/opt/nginx --with-compat \
+    && make -j$(nproc) install
+
+FROM base AS build-stream-only
+RUN ./configure --prefix=/opt/nginx --with-compat --without-http --with-stream \
+    && make -j$(nproc) install
+
+# ---- test-http-stream: nginx(http+stream) + combined module ----
+FROM alpine:3.20 AS test-http-stream
+ARG NGX_VER
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories \
+ && apk add --no-cache pcre-dev zlib-dev openssl-dev libgcc libstdc++
+COPY --from=build-combined /opt/nginx/ /opt/nginx/
+COPY conf/http-stream.conf /opt/nginx/conf/nginx.conf
+RUN ln -sf /dev/stdout /opt/nginx/logs/access.log \
+    && ln -sf /dev/stderr /opt/nginx/logs/error.log
+EXPOSE 8080 9090
+CMD ["/opt/nginx/sbin/nginx", "-g", "daemon off;"]
+
+# ---- test-http-only: nginx(http-only) + combined module ----
+FROM alpine:3.20 AS test-http-only
+ARG NGX_VER
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories \
+ && apk add --no-cache pcre-dev zlib-dev openssl-dev libgcc libstdc++
+COPY --from=build-http-only /opt/nginx/ /opt/nginx/
+COPY --from=build-combined /opt/nginx/modules/ngx_http_accounting_module.so /opt/nginx/modules/
+COPY conf/http-only.conf /opt/nginx/conf/nginx.conf
+RUN ln -sf /dev/stdout /opt/nginx/logs/access.log \
+    && ln -sf /dev/stderr /opt/nginx/logs/error.log
+EXPOSE 8080
+CMD ["/opt/nginx/sbin/nginx", "-g", "daemon off;"]
+
+# ---- test-stream-only: nginx(stream-only) + combined module ----
+FROM alpine:3.20 AS test-stream-only
+ARG NGX_VER
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.aliyun.com|g' /etc/apk/repositories \
+ && apk add --no-cache pcre-dev zlib-dev openssl-dev libgcc libstdc++
+COPY --from=build-stream-only /opt/nginx/ /opt/nginx/
+COPY --from=build-combined /opt/nginx/modules/ngx_http_accounting_module.so /opt/nginx/modules/
+COPY conf/stream-only.conf /opt/nginx/conf/nginx.conf
+RUN ln -sf /dev/stdout /opt/nginx/logs/access.log \
+    && ln -sf /dev/stderr /opt/nginx/logs/error.log
+EXPOSE 9090
+CMD ["/opt/nginx/sbin/nginx", "-g", "daemon off;"]
