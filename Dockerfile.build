@@ -1,9 +1,8 @@
-ARG NGX_VER=1.26.2
+ARG NGX_VER=1.31.1
+ARG BUILDER_IMAGE=ghcr.io/lax/traffic-accounting-nginx-module/builder:alpine-3.20
 
-FROM alpine:3.20 AS base
+FROM ${BUILDER_IMAGE} AS base
 ARG NGX_VER
-
-RUN apk add --no-cache build-base pcre-dev zlib-dev openssl-dev linux-headers curl tar
 
 WORKDIR /src
 
