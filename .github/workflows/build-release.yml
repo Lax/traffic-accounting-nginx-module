@@ -1,8 +1,8 @@
 name: Build and Release
 
 on:
-  repository_dispatch:
-    types: [module-updated]
+  schedule:
+    - cron: '0 6 * * *'
   push:
     tags:
       - '*-v*'
@@ -55,12 +55,7 @@ jobs:
 
           EVENT="${{ github.event_name }}"
 
-          if [ "$EVENT" = "repository_dispatch" ]; then
-            VERSION="${{ github.event.client_payload.version }}"
-            COMMIT="${{ github.event.client_payload.commit }}"
-            echo "should_build=true" >> $GITHUB_OUTPUT
-
-          elif [ "$EVENT" = "push" ]; then
+          if [ "$EVENT" = "push" ]; then
             TAG="${GITHUB_REF#refs/tags/}"
             VERSION="${TAG#${MODULE}-}"
             cd "$MODULE"
