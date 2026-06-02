@@ -44,9 +44,15 @@ ngx_traffic_accounting_period_insert(ngx_traffic_accounting_period_t *period, ng
     ngx_traffic_accounting_metrics_t   *metrics;
 
     metrics = ngx_calloc(sizeof(ngx_traffic_accounting_metrics_t), log);
+    if (metrics == NULL)
+        return;
 
     void *data;
     data = ngx_calloc(name->len+1, log);
+    if (data == NULL) {
+        ngx_free(metrics);
+        return;
+    }
     ngx_memcpy(data, name->data, name->len);
 
     metrics->name.data = data;
