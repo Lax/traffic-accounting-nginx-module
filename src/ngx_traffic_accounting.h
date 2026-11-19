@@ -20,6 +20,9 @@ ngx_uint_t ngx_status_bsearch(ngx_uint_t status, ngx_uint_t statuses[], ngx_uint
  * Period / Metrics
  */
 
+/* Maximum length of a stored accounting id; longer ids are truncated. */
+#define NGXTA_MAX_NAME_LEN  255
+
 typedef struct {
     ngx_rbtree_node_t   rbnode;
 
@@ -37,6 +40,10 @@ typedef struct {
 typedef struct {
     ngx_rbtree_t       rbtree;
     ngx_rbtree_node_t  sentinel;
+
+    ngx_uint_t          nr_metrics;     /* metrics nodes currently held */
+    ngx_uint_t          max_metrics;    /* per-period accounting id cap */
+    ngx_uint_t          overflowed;     /* overflow bucket already in use */
 
     /* copied by value: never a pointer into the global cached time */
     ngx_time_t          created_at;

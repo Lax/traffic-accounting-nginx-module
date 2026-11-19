@@ -23,7 +23,7 @@ static ngx_int_t worker_process_export_metrics(void *val, void *para1, void *par
 static char *ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
 static ngx_int_t ngx_http_accounting_request_handler(ngx_http_request_t *r);
-static ngx_str_t *ngx_http_accounting_get_accounting_id(ngx_http_request_t *r);
+static ngx_str_t *ngx_http_accounting_get_accounting_id(ngx_str_t *id, ngx_http_request_t *r);
 
 
 static ngx_command_t  ngx_http_accounting_commands[] = {
@@ -39,6 +39,13 @@ static ngx_command_t  ngx_http_accounting_commands[] = {
       ngx_conf_set_sec_slot,
       NGX_HTTP_MAIN_CONF_OFFSET,
       offsetof(ngx_http_accounting_main_conf_t, interval),
+      NULL},
+
+    { ngx_string("accounting_max_metrics"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_num_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_accounting_main_conf_t, max_metrics),
       NULL},
 
     { ngx_string("accounting_perturb"),
@@ -251,7 +258,8 @@ ngx_http_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *
 static ngx_int_t
 ngx_http_accounting_request_handler(ngx_http_request_t *r)
 {
-    ngx_str_t                          *accounting_id;
+    ngx_str_t                          id;
+    ngx_str_t                         *accounting_id;
     ngx_traffic_accounting_metrics_t   *metrics;
     ngx_http_accounting_main_conf_t    *amcf;
 
@@ -260,16 +268,21 @@ ngx_http_accounting_request_handler(ngx_http_request_t *r)
     ngx_msec_int_t               ms = 0;
     ngx_http_upstream_state_t   *state;
 
-    accounting_id = ngx_http_accounting_get_accounting_id(r);
+    accounting_id = ngx_http_accounting_get_accounting_id(&id, r);
     if (accounting_id == NULL) { return NGX_ERROR; }
 
     amcf = ngx_http_get_module_main_conf(r, ngx_http_accounting_module);
+
+    if (amcf->current == NULL) { return NGX_ERROR; }
 
     metrics = ngx_traffic_accounting_period_fetch_metrics(amcf->current, accounting_id, amcf->log);
     if (metrics == NULL) { return NGX_ERROR; }
 
     if (ngx_traffic_accounting_metrics_init(metrics, ngx_http_statuses_len, amcf->log) == NGX_ERROR)
         return NGX_ERROR;
+
+    /* invariant: nr_entries is only incremented after the status arrays
+     * are allocated, so an exported node never has NULL counters */
 
     amcf->current->updated_at = *ngx_timeofday();
 
@@ -325,7 +338,7 @@ ngx_http_accounting_get_indexed_variable(void *entry, ngx_uint_t index)
 }
 
 static ngx_str_t *
-ngx_http_accounting_get_accounting_id(ngx_http_request_t *r)
+ngx_http_accounting_get_accounting_id(ngx_str_t *id, ngx_http_request_t *r)
 {
-    return ngx_traffic_accounting_get_accounting_id(r, ngx_http_accounting_get_loc_conf, ngx_http_accounting_get_indexed_variable);
+    return ngx_traffic_accounting_get_accounting_id(id, r, ngx_http_accounting_get_loc_conf, ngx_http_accounting_get_indexed_variable);
 }

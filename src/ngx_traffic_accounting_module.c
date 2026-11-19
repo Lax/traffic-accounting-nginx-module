@@ -20,6 +20,8 @@ ngx_traffic_accounting_period_create(ngx_traffic_accounting_main_conf_t *amcf)
 
     ngx_traffic_accounting_period_init(period);
 
+    period->max_metrics = amcf->max_metrics;
+
     period->created_at = *ngx_timeofday();
     period->updated_at = period->created_at;
 

@@ -17,9 +17,10 @@ ngx_traffic_accounting_create_main_conf(ngx_conf_t *cf)
     if (amcf == NULL)
         return NULL;
 
-    amcf->enable   = NGX_CONF_UNSET;
-    amcf->interval = NGX_CONF_UNSET;
-    amcf->perturb  = NGX_CONF_UNSET;
+    amcf->enable      = NGX_CONF_UNSET;
+    amcf->interval    = NGX_CONF_UNSET;
+    amcf->perturb     = NGX_CONF_UNSET;
+    amcf->max_metrics = NGX_CONF_UNSET_UINT;
 
     return amcf;
 }
@@ -32,6 +33,38 @@ ngx_traffic_accounting_init_main_conf(ngx_conf_t *cf, void *conf)
     if (amcf->enable   == NGX_CONF_UNSET) { amcf->enable   = 0;  }
     if (amcf->interval == NGX_CONF_UNSET) { amcf->interval = 60; }
     if (amcf->perturb  == NGX_CONF_UNSET) { amcf->perturb  = 0;  }
+
+    /* keep interval in a range that survives the msec conversion on
+     * every supported platform */
+    if (amcf->interval < 1) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                           "accounting_interval must be at least 1s, adjusted");
+        amcf->interval = 1;
+    }
+
+    if (amcf->interval > NGXTA_MAX_INTERVAL) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                           "accounting_interval clamped to %d s", NGXTA_MAX_INTERVAL);
+        amcf->interval = NGXTA_MAX_INTERVAL;
+    }
+
+    if (amcf->max_metrics == NGX_CONF_UNSET_UINT) {
+        amcf->max_metrics = NGXTA_MAX_METRICS_DEFAULT;
+    }
+
+    if (amcf->max_metrics < NGXTA_MAX_METRICS_MIN) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                           "accounting_max_metrics must be at least %d, adjusted",
+                           NGXTA_MAX_METRICS_MIN);
+        amcf->max_metrics = NGXTA_MAX_METRICS_MIN;
+    }
+
+    if (amcf->max_metrics > NGXTA_MAX_METRICS_MAX) {
+        ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                           "accounting_max_metrics clamped to %d",
+                           NGXTA_MAX_METRICS_MAX);
+        amcf->max_metrics = NGXTA_MAX_METRICS_MAX;
+    }
 
     return NGX_CONF_OK;
 }
@@ -118,12 +151,11 @@ ngx_traffic_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, voi
 
 
 ngx_str_t *
-ngx_traffic_accounting_get_accounting_id(void *entry, ngx_get_loc_conf_pt get_loc_conf,
-    ngx_get_indexed_variable_pt get_indexed_variable)
+ngx_traffic_accounting_get_accounting_id(ngx_str_t *id, void *entry,
+    ngx_get_loc_conf_pt get_loc_conf, ngx_get_indexed_variable_pt get_indexed_variable)
 {
     ngx_traffic_accounting_loc_conf_t   *alcf;
     ngx_variable_value_t                *vv;
-    static ngx_str_t                     accounting_id;
 
     alcf = get_loc_conf(entry);
     if (alcf == NULL)
@@ -132,22 +164,27 @@ ngx_traffic_accounting_get_accounting_id(void *entry, ngx_get_loc_conf_pt get_lo
     if (alcf->index != NGX_CONF_UNSET && alcf->index != NGX_CONF_INDEX_UNSET) {
         vv = get_indexed_variable(entry, alcf->index);
 
-        if (vv != NULL) {
-            if (vv->not_found) {
-                vv->no_cacheable = 1;
-                return NULL;
-            }
+        if (vv != NULL && !vv->not_found) {
+            id->len = vv->len;
+            id->data = vv->data;
 
-            if (!vv->not_found) {
-                // vv->data[vv->len] = '\0';
-
-                accounting_id.len = vv->len;
-                accounting_id.data = vv->data;
-
-                return &accounting_id;
-            }
+            return id;
         }
+
+        if (vv != NULL) {
+            vv->no_cacheable = 1;
+        }
+
+        /* variable unset (e.g. HTTP/1.0 requests carry no Host header):
+         * return an empty id; fetch_metrics accounts it under "default"
+         * so the request is never silently skipped */
+        id->len = 0;
+        id->data = NULL;
+
+        return id;
     }
 
-    return &alcf->accounting_id;
+    *id = alcf->accounting_id;
+
+    return id;
 }

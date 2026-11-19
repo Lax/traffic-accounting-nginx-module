@@ -4,11 +4,17 @@
  */
 
 
+#include <syslog.h>
 #include "ngx_traffic_accounting.h"
 
 
+static ngx_str_t  ngx_traffic_accounting_overflow_name = ngx_string("__overflow__");
+static ngx_str_t  ngx_traffic_accounting_default_name = ngx_string("default");
+
 static void ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp,
     ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
+static void ngx_traffic_accounting_period_normalize_name(ngx_str_t *out, u_char *buf,
+    ngx_str_t *name);
 static ngx_traffic_accounting_metrics_t *ngx_traffic_accounting_period_lookup_metrics(
     ngx_traffic_accounting_period_t *period, ngx_str_t *name);
 static ngx_traffic_accounting_metrics_t *ngx_traffic_accounting_period_insert(
@@ -73,6 +79,8 @@ ngx_traffic_accounting_period_insert(ngx_traffic_accounting_period_t *period, ng
 
     ngx_rbtree_insert(&period->rbtree, &metrics->rbnode);
 
+    period->nr_metrics++;
+
     return metrics;
 }
 
@@ -126,16 +134,74 @@ ngx_traffic_accounting_period_lookup_metrics(ngx_traffic_accounting_period_t *pe
     return NULL;
 }
 
+/*
+ * Normalize an accounting id at the trust boundary, before it is hashed,
+ * looked up or stored: truncate to NGXTA_MAX_NAME_LEN, replace characters
+ * that could forge or corrupt exported log lines (control characters and
+ * the field separator '|'), and map empty ids to "default" so every
+ * request stays accounted.  Lookup, hash and storage all see the same
+ * normalized bytes.
+ */
+static void
+ngx_traffic_accounting_period_normalize_name(ngx_str_t *out, u_char *buf, ngx_str_t *name)
+{
+    size_t   i;
+
+    out->len = ngx_min(name->len, NGXTA_MAX_NAME_LEN);
+
+    for (i = 0; i < out->len; i++) {
+        buf[i] = (name->data[i] < 0x20 || name->data[i] == 0x7f
+                  || name->data[i] == '|') ? '_' : name->data[i];
+    }
+
+    out->data = buf;
+
+    if (out->len == 0) {
+        *out = ngx_traffic_accounting_default_name;
+    }
+}
+
 ngx_traffic_accounting_metrics_t *
 ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *period, ngx_str_t *name, ngx_log_t *log)
 {
-    ngx_traffic_accounting_metrics_t   *n;
+    u_char                             buf[NGXTA_MAX_NAME_LEN];
+    ngx_str_t                          clean;
+    ngx_traffic_accounting_metrics_t  *n;
 
-    n = ngx_traffic_accounting_period_lookup_metrics(period, name);
-    if (n != NULL)
+    ngx_traffic_accounting_period_normalize_name(&clean, buf, name);
+
+    n = ngx_traffic_accounting_period_lookup_metrics(period, &clean);
+    if (n != NULL) {
         return n;
+    }
 
-    return ngx_traffic_accounting_period_insert(period, name, log);
+    if (period->nr_metrics >= period->max_metrics) {
+        if (!period->overflowed) {
+            period->overflowed = 1;
+            if (log != NULL) {
+                ngx_log_error(NGX_LOG_ALERT, log, 0,
+                              "traffic accounting: more than %ui accounting "
+                              "ids in one period, new ids are accounted as "
+                              "\"__overflow__\"", period->max_metrics);
+            } else {
+                syslog(LOG_ALERT,
+                       "traffic accounting: more than %lu accounting ids in "
+                       "one period, new ids are accounted as \"__overflow__\"",
+                       (unsigned long) period->max_metrics);
+            }
+        }
+
+        n = ngx_traffic_accounting_period_lookup_metrics(
+                period, &ngx_traffic_accounting_overflow_name);
+        if (n != NULL) {
+            return n;
+        }
+
+        return ngx_traffic_accounting_period_insert(
+                   period, &ngx_traffic_accounting_overflow_name, log);
+    }
+
+    return ngx_traffic_accounting_period_insert(period, &clean, log);
 }
 
 /*
