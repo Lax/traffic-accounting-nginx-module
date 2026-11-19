@@ -15,6 +15,7 @@ static void ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp,
     ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
 static void ngx_traffic_accounting_period_normalize_name(ngx_str_t *out, u_char *buf,
     ngx_str_t *name);
+static ngx_int_t ngx_traffic_accounting_name_eq(ngx_str_t *a, ngx_str_t *b);
 static ngx_traffic_accounting_metrics_t *ngx_traffic_accounting_period_lookup_metrics(
     ngx_traffic_accounting_period_t *period, ngx_str_t *name);
 static ngx_traffic_accounting_metrics_t *ngx_traffic_accounting_period_insert(
@@ -175,7 +176,12 @@ ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *per
         return n;
     }
 
-    if (period->nr_metrics >= period->max_metrics) {
+    /* The reserved fallback id "default" is always tracked in its own
+     * bucket even past the cap, so requests with unset ids are never
+     * hidden inside "__overflow__".  Bound stays max_metrics + 2. */
+    if (period->nr_metrics >= period->max_metrics
+        && !ngx_traffic_accounting_name_eq(&clean, &ngx_traffic_accounting_default_name))
+    {
         if (!period->overflowed) {
             period->overflowed = 1;
             if (log != NULL) {
@@ -202,6 +208,16 @@ ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *per
     }
 
     return ngx_traffic_accounting_period_insert(period, &clean, log);
+}
+
+static ngx_int_t
+ngx_traffic_accounting_name_eq(ngx_str_t *a, ngx_str_t *b)
+{
+    if (a->len != b->len) {
+        return 0;
+    }
+
+    return a->len == 0 || ngx_memcmp(a->data, b->data, a->len) == 0;
 }
 
 /*

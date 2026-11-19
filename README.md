@@ -184,7 +184,8 @@ therefore normalized before they are used as metrics keys:
   reserved id `default` — such requests are never silently skipped;
 - the per-interval number of distinct ids is capped by
 `accounting_max_metrics`; ids beyond the cap are accounted under
-`__overflow__`.
+`__overflow__`.  The reserved `default` id is always tracked in its
+own bucket, even past the cap.
 
 Together with the per-interval cap these rules bound worker memory and
 export time even under adversarial traffic.
