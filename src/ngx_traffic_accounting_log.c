@@ -25,8 +25,10 @@ ngx_traffic_accounting_log_metrics(void *val, void *para1, void *para2,
         return NGX_OK;
     }
 
-    if (metrics->name.len > 255) {
-        // Possible buffer overrun. Do not log it.
+    if (metrics->name.len > NGXTA_MAX_NAME_LEN) {
+        /* Defense in depth: stored names are already truncated to
+         * NGXTA_MAX_NAME_LEN when inserted (see
+         * ngx_traffic_accounting_period_fetch_metrics). */
         return NGX_OK;
     }
 

@@ -8,7 +8,7 @@ ENV NGX_VER 1.16.0
 
 ENV WORKDIR /src
 ENV NGX_SRC_DIR ${WORKDIR}/nginx-${NGX_VER}
-ENV NGX_URL http://nginx.org/download/nginx-${NGX_VER}.tar.gz
+ENV NGX_URL https://nginx.org/download/nginx-${NGX_VER}.tar.gz
 ENV NGX_HTTP_ECHO_URL https://github.com/openresty/echo-nginx-module/archive/master.tar.gz
 
 WORKDIR ${WORKDIR}
