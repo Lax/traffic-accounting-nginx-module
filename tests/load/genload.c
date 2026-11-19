@@ -32,7 +32,7 @@
 static char        *host, *id_prefix = "u";
 static int          port, conns, pipeline, total, id_unique = 1;
 static int          epfd;
-static volatile int sent_total, ok_total, err_total, done;
+static volatile int sent_total, ok_total, err_total, lost_total, done;
 
 static uint64_t     max_gap_us;
 static double       start_us;
@@ -50,6 +50,9 @@ typedef struct {
     char   buf[1 << 16];
     int    buf_len;
     int    scan_off;      /* how far the response scanner has consumed */
+    char   out[1 << 17];  /* pending request bytes not fully written yet */
+    int    out_len;
+    int    out_off;
     double last_read_us;
 } conn_t;
 
@@ -104,30 +107,46 @@ static void open_conn(conn_t *c)
     epoll_ctl(epfd, EPOLL_CTL_ADD, fd, &ev);
 }
 
+/* flush pending output; returns after EAGAIN or when the buffer is empty */
+static void flush_conn(conn_t *c)
+{
+    while (c->out_off < c->out_len) {
+        int n = write(c->fd, c->out + c->out_off, c->out_len - c->out_off);
+        if (n > 0) {
+            c->out_off += n;
+            continue;
+        }
+        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
+            return;
+        if (n < 0 && errno == EINTR)
+            continue;
+        return; /* hard error: leave the rest pending */
+    }
+    if (c->out_off >= c->out_len) {
+        c->out_off = c->out_len = 0;
+    }
+}
+
 static void pump_writes(conn_t *c)
 {
     char req[512];
     int req_len;
-    char batch[64 * 512];
-    int batch_len = 0;
 
-    while (c->inflight < pipeline * 2) {
+    flush_conn(c);
+
+    while (c->inflight < pipeline * 2
+           && (int)(sizeof(c->out) - c->out_len) > 512) {
         int room = total - __atomic_load_n(&sent_total, __ATOMIC_RELAXED);
         if (room <= 0)
             break;
         if (!make_request(req, &req_len))
             break;
-        memcpy(batch + batch_len, req, req_len);
-        batch_len += req_len;
+        memcpy(c->out + c->out_len, req, req_len);
+        c->out_len += req_len;
         c->inflight++;
         __atomic_fetch_add(&sent_total, 1, __ATOMIC_RELAXED);
-        if (batch_len >= pipeline * 256)
-            break;
     }
-    if (batch_len) {
-        int n = write(c->fd, batch, batch_len);
-        (void)n; /* partial writes are retried on next EPOLLOUT via inflight slack */
-    }
+    flush_conn(c);
 }
 
 /*
@@ -167,6 +186,23 @@ static void scan_responses(conn_t *c)
     }
 }
 
+/* server closed / reset the connection: any in-flight requests on it are
+ * lost (counted as such); reconnect if work remains */
+static void conn_dead(conn_t *c)
+{
+    epoll_ctl(epfd, EPOLL_CTL_DEL, c->fd, NULL);
+    close(c->fd);
+    if (c->inflight > 0) {
+        __atomic_fetch_add(&lost_total, c->inflight, __ATOMIC_RELAXED);
+        c->inflight = 0;
+    }
+    if (__atomic_load_n(&sent_total, __ATOMIC_RELAXED) < total) {
+        open_conn(c);   /* fresh connection, fresh buffers */
+    } else {
+        done = 1;
+    }
+}
+
 static void drain_reads(conn_t *c)
 {
     for (;;) {
@@ -182,13 +218,13 @@ static void drain_reads(conn_t *c)
             continue;
         }
         if (n == 0) {
-            done = 1;
+            conn_dead(c);
             return;
         }
         if (errno == EAGAIN || errno == EWOULDBLOCK)
             return;
         if (errno != EINTR) {
-            done = 1;
+            conn_dead(c);
             return;
         }
     }
@@ -243,18 +279,25 @@ int main(int argc, char **argv)
             last_ok = __atomic_load_n(&ok_total, __ATOMIC_RELAXED);
             last_tick = now;
         }
-        if (__atomic_load_n(&ok_total, __ATOMIC_RELAXED) +
-            __atomic_load_n(&err_total, __ATOMIC_RELAXED) >= total)
+        if (__atomic_load_n(&sent_total, __ATOMIC_RELAXED) >= total &&
+            __atomic_load_n(&ok_total, __ATOMIC_RELAXED) +
+            __atomic_load_n(&err_total, __ATOMIC_RELAXED) +
+            __atomic_load_n(&lost_total, __ATOMIC_RELAXED) >= total)
             break;
         if (done)
             break;
+        if (now - start_us > 180e6) {
+            fprintf(stderr, "deadline exceeded\n");
+            break;
+        }
     }
 
     double dur = now_us() - start_us;
-    printf("RESULT sent=%d ok=%d err=%d duration_s=%.2f rps=%.0f max_read_gap_ms=%.1f\n",
+    printf("RESULT sent=%d ok=%d err=%d lost=%d duration_s=%.2f rps=%.0f max_read_gap_ms=%.1f\n",
            sent_total,
            __atomic_load_n(&ok_total, __ATOMIC_RELAXED),
            __atomic_load_n(&err_total, __ATOMIC_RELAXED),
+           __atomic_load_n(&lost_total, __ATOMIC_RELAXED),
            dur / 1e6,
            __atomic_load_n(&ok_total, __ATOMIC_RELAXED) / (dur / 1e6),
            max_gap_us / 1000.0);

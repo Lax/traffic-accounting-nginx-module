@@ -38,6 +38,8 @@ http {
     accounting_interval $INTERVAL;
     server {
         listen 127.0.0.1:$PORT;
+        keepalive_timeout 600;
+        keepalive_requests 10000000;
         location / { accounting_id \$arg_uid; return 200 "ok"; }
     }
 }
@@ -48,11 +50,12 @@ export ASAN_OPTIONS=detect_leaks=1:abort_on_error=0:log_path="$RUNDIR/asan"
 sleep 1
 
 DURATION=$(( ROTATIONS * INTERVAL + 2 ))
-"$HERE/genload" 127.0.0.1 "$PORT" 16 64 "$TOTAL" --id-mode unique --prefix s > "$RUNDIR/genload.out" 2>&1 &
-LOAD_PID=$!
+( "$HERE/genload" 127.0.0.1 "$PORT" 16 64 "$TOTAL" --id-mode unique --prefix s \
+    > "$RUNDIR/genload.out" 2>&1
+  echo $? > "$RUNDIR/genload.rc" ) &
 sleep "$DURATION"
-kill -0 $LOAD_PID 2>/dev/null && wait $LOAD_PID
-LOAD_RC=$?
+wait
+LOAD_RC=$(cat "$RUNDIR/genload.rc" 2>/dev/null || echo 1)
 
 "$NGINX_BIN" -p "$RUNDIR/" -c "$RUNDIR/nginx.conf" -s quit 2>/dev/null
 sleep 2

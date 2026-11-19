@@ -62,6 +62,8 @@ http {
 $CAP_LINE
     server {
         listen 127.0.0.1:$PORT;
+        keepalive_timeout 600;
+        keepalive_requests 10000000;
         location / { accounting_id \$arg_uid; return 200 "ok"; }
     }
 }
@@ -71,13 +73,25 @@ EOF
 "$NGINX_BIN" -p "$RUNDIR/" -c "$RUNDIR/nginx.conf" || { echo "nginx failed to start" >&2; exit 2; }
 sleep 1
 
-# span at least two rotations
-RUN_SECONDS=$(( INTERVAL * 2 + 2 ))
-"$HERE/genload" 127.0.0.1 "$PORT" "$CONNS" "$PIPELINE" "$TOTAL" --id-mode unique --prefix c > "$RUNDIR/genload.out" 2>"$RUNDIR/genload.err" &
-LOAD_PID=$!
-sleep "$RUN_SECONDS"
-kill -0 $LOAD_PID 2>/dev/null && wait $LOAD_PID
-LOAD_RC=$?
+# span at least two rotations: split the load into 3 batches separated by a
+# full interval, so batch boundaries cross export boundaries
+BATCH=$(( TOTAL / 3 ))
+[ "$BATCH" -lt 1 ] && BATCH=1
+LOAD_RC=0
+for b in 1 2 3; do
+    PREFIX="c$b"
+    BCOUNT=$BATCH
+    [ "$b" = 3 ] && BCOUNT=$(( TOTAL - 2 * BATCH ))
+    ( "$HERE/genload" 127.0.0.1 "$PORT" "$CONNS" "$PIPELINE" "$BCOUNT" \
+        --id-mode unique --prefix "$PREFIX" \
+        > "$RUNDIR/genload-$b.out" 2> "$RUNDIR/genload-$b.err"
+      echo $? > "$RUNDIR/genload-$b.rc" ) &
+    wait
+    RC=$(cat "$RUNDIR/genload-$b.rc" 2>/dev/null || echo 1)
+    [ "$RC" != 0 ] && LOAD_RC=$RC
+    cat "$RUNDIR/genload-$b.out" >> "$RUNDIR/genload.out"
+    [ "$b" != 3 ] && sleep "$INTERVAL"
+done
 
 "$NGINX_BIN" -p "$RUNDIR/" -c "$RUNDIR/nginx.conf" -s quit 2>/dev/null
 for _ in $(seq 1 100); do
@@ -86,11 +100,12 @@ for _ in $(seq 1 100); do
     sleep 0.2
 done
 
-RESULT=$(cat "$RUNDIR/genload.out" 2>/dev/null | tail -1)
-OK_COUNT=$(sed -n 's/.*ok=\([0-9]*\).*/\1/p' <<<"$RESULT")
-ERR_COUNT=$(sed -n 's/.*err=\([0-9]*\).*/\1/p' <<<"$RESULT")
-RPS=$(sed -n 's/.*rps=\([0-9]*\).*/\1/p' <<<"$RESULT")
-MAX_GAP=$(sed -n 's/.*max_read_gap_ms=\([0-9.]*\).*/\1/p' <<<"$RESULT")
+OK_COUNT=$(sed -n 's/.*[^0-9]ok=\([0-9]*\).*/\1/p' "$RUNDIR/genload.out" 2>/dev/null | awk '{s+=$1} END{print s+0}')
+ERR_COUNT=$(sed -n 's/.*[^0-9]err=\([0-9]*\).*/\1/p' "$RUNDIR/genload.out" 2>/dev/null | awk '{s+=$1} END{print s+0}')
+RPS=$(sed -n 's/.*[^0-9]rps=\([0-9]*\).*/\1/p' "$RUNDIR/genload.out" 2>/dev/null | sort -n | tail -1)
+MAX_GAP=$(sed -n 's/.*max_read_gap_ms=\([0-9.]*\).*/\1/p' "$RUNDIR/genload.out" 2>/dev/null | sort -n | tail -1)
+OK_COUNT=${OK_COUNT:-0}
+ERR_COUNT=${ERR_COUNT:-0}
 
 EXPORTED=$(python3 "$HERE/../lib/parseacct.py" "$ACCT_LOG" sum --field requests 2>/dev/null || echo 0)
 IDS=$(python3 "$HERE/../lib/parseacct.py" "$ACCT_LOG" ids 2>/dev/null | wc -l)
