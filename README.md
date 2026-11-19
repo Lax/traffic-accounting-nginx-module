@@ -153,7 +153,7 @@ accounting_max_metrics
 
 Maximum number of distinct `accounting_id`s tracked per reporting
 interval, per worker process.  Once the limit is reached, further new
-ids are accounted under the reserved id `__overflow__` and an alert is
+ids are accounted under the reserved id `overflow` and an alert is
 logged once per interval.  Values outside `16 .. 1048576` are clamped
 (with a warning).
 
@@ -179,13 +179,19 @@ therefore normalized before they are used as metrics keys:
 - ids longer than **255 bytes** are truncated to their first 255 bytes;
 - control characters, `DEL` and the field separator `|` are replaced
   by `_`, so exported log lines cannot be forged or misparsed;
-- ids that are **empty or unset** (for example HTTP/1.0 requests carry
-  no `Host` header, so `$http_host` is unset) are accounted under the
-  reserved id `default` — such requests are never silently skipped;
 - the per-interval number of distinct ids is capped by
-`accounting_max_metrics`; ids beyond the cap are accounted under
-`__overflow__`.  The reserved `default` id is always tracked in its
-own bucket, even past the cap.
+  `accounting_max_metrics`.
+
+Two ids are reserved.  They share the same plain-word naming and the
+same rule: a real id that happens to equal a reserved word is simply
+merged into that bucket.
+
+- `default` — ids that are **empty or unset** (for example HTTP/1.0
+  requests carry no `Host` header, so `$http_host` is unset) are
+  accounted here; such requests are never silently skipped, and the
+  bucket always gets its own node, even past the cap.
+- `overflow` — ids that would exceed the `accounting_max_metrics` cap
+  are accounted here; an alert is logged once per interval.
 
 Together with the per-interval cap these rules bound worker memory and
 export time even under adversarial traffic.

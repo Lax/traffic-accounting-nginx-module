@@ -8,8 +8,18 @@
 #include "ngx_traffic_accounting.h"
 
 
-static ngx_str_t  ngx_traffic_accounting_overflow_name = ngx_string("__overflow__");
+/*
+ * Reserved accounting ids (see README, "Security hardening"):
+ *
+ *   default   fallback for empty or unset ids; always tracked in its
+ *             own node, even past the metrics cap
+ *   overflow  ids beyond the per-period cap are accounted here
+ *
+ * A real id that equals a reserved word is merged into that bucket.
+ * The memory bound stays max_metrics + 2 nodes.
+ */
 static ngx_str_t  ngx_traffic_accounting_default_name = ngx_string("default");
+static ngx_str_t  ngx_traffic_accounting_overflow_name = ngx_string("overflow");
 
 static void ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp,
     ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
@@ -178,7 +188,7 @@ ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *per
 
     /* The reserved fallback id "default" is always tracked in its own
      * bucket even past the cap, so requests with unset ids are never
-     * hidden inside "__overflow__".  Bound stays max_metrics + 2. */
+     * hidden inside "overflow".  Bound stays max_metrics + 2. */
     if (period->nr_metrics >= period->max_metrics
         && !ngx_traffic_accounting_name_eq(&clean, &ngx_traffic_accounting_default_name))
     {
@@ -188,11 +198,11 @@ ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *per
                 ngx_log_error(NGX_LOG_ALERT, log, 0,
                               "traffic accounting: more than %ui accounting "
                               "ids in one period, new ids are accounted as "
-                              "\"__overflow__\"", period->max_metrics);
+                              "\"overflow\"", period->max_metrics);
             } else {
                 syslog(LOG_ALERT,
                        "traffic accounting: more than %lu accounting ids in "
-                       "one period, new ids are accounted as \"__overflow__\"",
+                       "one period, new ids are accounted as \"overflow\"",
                        (unsigned long) period->max_metrics);
             }
         }
