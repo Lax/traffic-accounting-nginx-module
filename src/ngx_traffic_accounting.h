@@ -38,14 +38,15 @@ typedef struct {
     ngx_rbtree_t       rbtree;
     ngx_rbtree_node_t  sentinel;
 
-    ngx_time_t        *created_at;
-    ngx_time_t        *updated_at;
+    /* copied by value: never a pointer into the global cached time */
+    ngx_time_t          created_at;
+    ngx_time_t          updated_at;
 } ngx_traffic_accounting_period_t;
 
 ngx_int_t ngx_traffic_accounting_metrics_init(ngx_traffic_accounting_metrics_t *metrics, size_t len, ngx_log_t *log);
 
 ngx_int_t ngx_traffic_accounting_period_init(ngx_traffic_accounting_period_t *period);
-void ngx_traffic_accounting_period_insert(ngx_traffic_accounting_period_t *period, ngx_str_t *name, ngx_log_t *log);
+ngx_traffic_accounting_metrics_t * ngx_traffic_accounting_period_insert(ngx_traffic_accounting_period_t *period, ngx_str_t *name, ngx_log_t *log);
 void ngx_traffic_accounting_period_insert_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics);
 void ngx_traffic_accounting_period_delete(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
 void ngx_traffic_accounting_period_delete_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics);

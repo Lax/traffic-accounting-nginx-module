@@ -206,8 +206,8 @@ worker_process_alarm_handler(ngx_event_t *ev)
     ngx_traffic_accounting_period_rotate(amcf);
     ngx_traffic_accounting_period_rbtree_iterate(amcf->previous,
                               worker_process_export_metrics,
-                              amcf->previous->created_at,
-                              amcf->previous->updated_at );
+                              &amcf->previous->created_at,
+                              &amcf->previous->updated_at );
 
     if (ngx_exiting || ev == NULL)
         return;
@@ -246,7 +246,7 @@ ngx_stream_accounting_session_handler(ngx_stream_session_t *s)
     if (ngx_traffic_accounting_metrics_init(metrics, ngx_stream_statuses_len, amcf->log) == NGX_ERROR)
         return NGX_ERROR;
 
-    amcf->current->updated_at = ngx_timeofday();
+    amcf->current->updated_at = *ngx_timeofday();
 
     metrics->nr_entries += 1;
     metrics->bytes_in += s->received;
