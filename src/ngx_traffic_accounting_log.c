@@ -59,7 +59,11 @@ ngx_traffic_accounting_log_metrics(void *val, void *para1, void *para2,
         p = last - NGX_LINEFEED_SIZE;
     }
 
-    *p++ = '\0';
+    /* keep the buffer NUL-terminated for the syslog "%s" path, but do
+     * not include the terminator in the length: ngx_log_error("%V")
+     * writes vv->len bytes verbatim and a trailing NUL would corrupt
+     * the exported file for downstream consumers */
+    *p = '\0';
 
     accounting_msg.len  = p - msg_buf;
     accounting_msg.data = msg_buf;
