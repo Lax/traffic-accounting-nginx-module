@@ -18,6 +18,7 @@ static ngx_int_t ngx_stream_accounting_process_init(ngx_cycle_t *cycle);
 static void ngx_stream_accounting_process_exit(ngx_cycle_t *cycle);
 
 static void worker_process_alarm_handler(ngx_event_t *ev);
+static ngx_int_t worker_process_export_metrics(void *val, void *para1, void *para2);
 
 static char *ngx_stream_accounting_set_accounting_id(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
@@ -136,7 +137,8 @@ ngx_stream_accounting_process_init(ngx_cycle_t *cycle)
     }
 
     if (amcf->current == NULL) {
-        if (ngx_traffic_accounting_period_create(amcf) != NGX_OK)
+        amcf->current = ngx_traffic_accounting_period_create(amcf);
+        if (amcf->current == NULL)
             return NGX_ERROR;
     }
 
@@ -166,11 +168,18 @@ ngx_stream_accounting_process_exit(ngx_cycle_t *cycle)
     ngx_stream_accounting_main_conf_t   *amcf;
 
     amcf = ngx_stream_cycle_get_module_main_conf(cycle, ngx_stream_accounting_module);
-    if (!amcf->enable) {
+    if (amcf == NULL || !amcf->enable) {
         return;
     }
 
-    worker_process_alarm_handler(NULL);
+    if (amcf->current != NULL) {
+        ngx_traffic_accounting_period_rbtree_iterate(amcf->current,
+                                  worker_process_export_metrics,
+                                  &amcf->current->created_at,
+                                  &amcf->current->updated_at );
+        ngx_traffic_accounting_period_destroy(amcf->current);
+        amcf->current = NULL;
+    }
 
     if (amcf->log != NULL) {
         ngx_log_error(NGXTA_LOG_LEVEL, amcf->log, 0, "pid:%i|stop stream traffic accounting", ngx_getpid());
@@ -183,31 +192,44 @@ static ngx_int_t
 worker_process_export_metrics(void *val, void *para1, void *para2)
 {
     ngx_stream_accounting_main_conf_t   *amcf;
-    ngx_int_t                            rc;
 
     amcf = ngx_stream_cycle_get_module_main_conf(ngx_cycle, ngx_stream_accounting_module);
 
-    rc = ngx_traffic_accounting_log_metrics(val, para1, para2,
-                                            amcf->log, entry_n,
-                                            ngx_stream_statuses,
-                                            ngx_stream_statuses_len );
-    if (rc == NGX_OK) { return NGX_DONE; }  /* NGX_DONE -> destroy node */
-
-    return rc;
+    return ngx_traffic_accounting_log_metrics(val, para1, para2,
+                                              amcf->log, entry_n,
+                                              ngx_stream_statuses,
+                                              ngx_stream_statuses_len );
 }
 
 static void
 worker_process_alarm_handler(ngx_event_t *ev)
 {
-    ngx_stream_accounting_main_conf_t   *amcf;
+    ngx_stream_accounting_main_conf_t    *amcf;
+    ngx_traffic_accounting_period_t      *old;
 
     amcf = ngx_stream_cycle_get_module_main_conf(ngx_cycle, ngx_stream_accounting_module);
 
-    ngx_traffic_accounting_period_rotate(amcf);
-    ngx_traffic_accounting_period_rbtree_iterate(amcf->previous,
-                              worker_process_export_metrics,
-                              &amcf->previous->created_at,
-                              &amcf->previous->updated_at );
+    old = amcf->current;
+    amcf->current = ngx_traffic_accounting_period_create(amcf);
+
+    if (amcf->current == NULL) {
+        /* allocation failed (memory pressure): keep counting into the
+         * current period and retry on the next interval */
+        amcf->current = old;
+        if (amcf->log != NULL) {
+            ngx_log_error(NGX_LOG_ALERT, amcf->log, 0,
+                          "pid:%i|accounting period rotation failed", ngx_getpid());
+        } else {
+            syslog(LOG_ALERT, "pid:%i|accounting period rotation failed", ngx_getpid());
+        }
+
+    } else if (old != NULL) {
+        ngx_traffic_accounting_period_rbtree_iterate(old,
+                                  worker_process_export_metrics,
+                                  &old->created_at,
+                                  &old->updated_at );
+        ngx_traffic_accounting_period_destroy(old);
+    }
 
     if (ngx_exiting || ev == NULL)
         return;

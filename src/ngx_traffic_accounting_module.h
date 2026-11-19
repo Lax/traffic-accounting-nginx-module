@@ -20,7 +20,6 @@ typedef struct {
     ngx_flag_t      perturb;
 
     ngx_traffic_accounting_period_t   *current;
-    ngx_traffic_accounting_period_t   *previous;
 } ngx_traffic_accounting_main_conf_t;
 
 typedef struct {
@@ -46,8 +45,7 @@ ngx_str_t * ngx_traffic_accounting_get_accounting_id(void *entry, ngx_get_loc_co
     ngx_get_indexed_variable_pt get_indexed_variable);
 
 
-ngx_int_t ngx_traffic_accounting_period_create(ngx_traffic_accounting_main_conf_t *amcf);
-ngx_int_t ngx_traffic_accounting_period_rotate(ngx_traffic_accounting_main_conf_t *amcf);
+ngx_traffic_accounting_period_t * ngx_traffic_accounting_period_create(ngx_traffic_accounting_main_conf_t *amcf);
 
 
 #endif /* _NGX_TRAFFIC_ACCOUNTING_MODULE_H_INCLUDED_ */
