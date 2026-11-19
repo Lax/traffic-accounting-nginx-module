@@ -45,6 +45,12 @@ typedef struct {
     ngx_uint_t          max_metrics;    /* per-period accounting id cap */
     ngx_uint_t          overflowed;     /* overflow bucket already in use */
 
+    /* reserved buckets (__default__ / __overflow__), referenced by
+     * identity rather than by name; they still live in the rbtree
+     * above and are exported and destroyed like any other node */
+    ngx_traffic_accounting_metrics_t   *default_metrics;
+    ngx_traffic_accounting_metrics_t   *overflow_metrics;
+
     /* copied by value: never a pointer into the global cached time */
     ngx_time_t          created_at;
     ngx_time_t          updated_at;

@@ -89,7 +89,7 @@ ngx_traffic_accounting_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_traffic_accounting_loc_conf_t   *conf = child;
 
     if (conf->index == NGX_CONF_UNSET) { // accounting_id is not set in current location
-        ngx_conf_merge_str_value(conf->accounting_id, prev->accounting_id, "default");
+        ngx_conf_merge_str_value(conf->accounting_id, prev->accounting_id, "__default__");
         conf->index = prev->index;
     }
 
@@ -176,8 +176,9 @@ ngx_traffic_accounting_get_accounting_id(ngx_str_t *id, void *entry,
         }
 
         /* variable unset (e.g. HTTP/1.0 requests carry no Host header):
-         * return an empty id; fetch_metrics accounts it under "default"
-         * so the request is never silently skipped */
+         * return an empty id; fetch_metrics accounts it under the
+         * reserved "__default__" bucket so the request is never
+         * silently skipped */
         id->len = 0;
         id->data = NULL;
 

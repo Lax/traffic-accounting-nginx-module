@@ -9,23 +9,29 @@
 
 
 /*
- * Reserved accounting ids (see README, "Security hardening"):
+ * Reserved accounting ids (see README, "Security hardening").
+ * Both use the same __name__ form, so they are recognizable as
+ * module-generated in any dashboard; a real id that equals a reserved
+ * word is merged into that bucket:
  *
- *   default   fallback for empty or unset ids; always tracked in its
- *             own node, even past the metrics cap
- *   overflow  ids beyond the per-period cap are accounted here
+ *   __default__   also the accounting_id config default; empty or
+ *                 unset ids are accounted here (never silently
+ *                 skipped), always in their own node, even past the cap
+ *   __overflow__  ids beyond the per-period cap are accounted here
  *
- * A real id that equals a reserved word is merged into that bucket.
  * The memory bound stays max_metrics + 2 nodes.
  */
-static ngx_str_t  ngx_traffic_accounting_default_name = ngx_string("default");
-static ngx_str_t  ngx_traffic_accounting_overflow_name = ngx_string("overflow");
+static ngx_str_t  ngx_traffic_accounting_default_name = ngx_string("__default__");
+static ngx_str_t  ngx_traffic_accounting_overflow_name = ngx_string("__overflow__");
 
 static void ngx_traffic_accounting_period_insert_value(ngx_rbtree_node_t *temp,
     ngx_rbtree_node_t *node, ngx_rbtree_node_t *sentinel);
 static void ngx_traffic_accounting_period_normalize_name(ngx_str_t *out, u_char *buf,
     ngx_str_t *name);
 static ngx_int_t ngx_traffic_accounting_name_eq(ngx_str_t *a, ngx_str_t *b);
+static ngx_traffic_accounting_metrics_t *ngx_traffic_accounting_period_reserved(
+    ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t **slot,
+    ngx_str_t *name, ngx_log_t *log);
 static ngx_traffic_accounting_metrics_t *ngx_traffic_accounting_period_lookup_metrics(
     ngx_traffic_accounting_period_t *period, ngx_str_t *name);
 static ngx_traffic_accounting_metrics_t *ngx_traffic_accounting_period_insert(
@@ -146,12 +152,12 @@ ngx_traffic_accounting_period_lookup_metrics(ngx_traffic_accounting_period_t *pe
 }
 
 /*
- * Normalize an accounting id at the trust boundary, before it is hashed,
- * looked up or stored: truncate to NGXTA_MAX_NAME_LEN, replace characters
- * that could forge or corrupt exported log lines (control characters and
- * the field separator '|'), and map empty ids to "default" so every
- * request stays accounted.  Lookup, hash and storage all see the same
- * normalized bytes.
+ * Byte-level normalization of an accounting id at the trust boundary,
+ * before it is hashed, looked up or stored: truncate to
+ * NGXTA_MAX_NAME_LEN and replace characters that could forge or
+ * corrupt exported log lines (control characters and the field
+ * separator '|').  Routing to reserved buckets is decided by the
+ * caller.  Lookup, hash and storage all see the same normalized bytes.
  */
 static void
 ngx_traffic_accounting_period_normalize_name(ngx_str_t *out, u_char *buf, ngx_str_t *name)
@@ -166,10 +172,23 @@ ngx_traffic_accounting_period_normalize_name(ngx_str_t *out, u_char *buf, ngx_st
     }
 
     out->data = buf;
+}
 
-    if (out->len == 0) {
-        *out = ngx_traffic_accounting_default_name;
+/*
+ * Lazily create (once per period) and return a reserved metrics node.
+ * Reserved buckets are referenced by pointer so their identity never
+ * depends on name lookups; they still live in the rbtree and are
+ * exported and destroyed like any other node.
+ */
+static ngx_traffic_accounting_metrics_t *
+ngx_traffic_accounting_period_reserved(ngx_traffic_accounting_period_t *period,
+    ngx_traffic_accounting_metrics_t **slot, ngx_str_t *name, ngx_log_t *log)
+{
+    if (*slot == NULL) {
+        *slot = ngx_traffic_accounting_period_insert(period, name, log);
     }
+
+    return *slot;
 }
 
 ngx_traffic_accounting_metrics_t *
@@ -181,40 +200,49 @@ ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *per
 
     ngx_traffic_accounting_period_normalize_name(&clean, buf, name);
 
+    /* unattributed traffic: empty or unset ids, and organic ids equal
+     * to the reserved word (which is also the accounting_id config
+     * default), all merge into the __default__ bucket */
+    if (clean.len == 0
+        || ngx_traffic_accounting_name_eq(&clean, &ngx_traffic_accounting_default_name))
+    {
+        return ngx_traffic_accounting_period_reserved(period,
+                   &period->default_metrics,
+                   &ngx_traffic_accounting_default_name, log);
+    }
+
     n = ngx_traffic_accounting_period_lookup_metrics(period, &clean);
     if (n != NULL) {
         return n;
     }
 
-    /* The reserved fallback id "default" is always tracked in its own
-     * bucket even past the cap, so requests with unset ids are never
-     * hidden inside "overflow".  Bound stays max_metrics + 2. */
-    if (period->nr_metrics >= period->max_metrics
-        && !ngx_traffic_accounting_name_eq(&clean, &ngx_traffic_accounting_default_name))
-    {
+    if (period->nr_metrics >= period->max_metrics) {
         if (!period->overflowed) {
             period->overflowed = 1;
             if (log != NULL) {
                 ngx_log_error(NGX_LOG_ALERT, log, 0,
                               "traffic accounting: more than %ui accounting "
                               "ids in one period, new ids are accounted as "
-                              "\"overflow\"", period->max_metrics);
+                              "\"__overflow__\"", period->max_metrics);
             } else {
                 syslog(LOG_ALERT,
                        "traffic accounting: more than %lu accounting ids in "
-                       "one period, new ids are accounted as \"overflow\"",
+                       "one period, new ids are accounted as \"__overflow__\"",
                        (unsigned long) period->max_metrics);
             }
         }
 
-        n = ngx_traffic_accounting_period_lookup_metrics(
-                period, &ngx_traffic_accounting_overflow_name);
-        if (n != NULL) {
-            return n;
-        }
+        return ngx_traffic_accounting_period_reserved(period,
+                   &period->overflow_metrics,
+                   &ngx_traffic_accounting_overflow_name, log);
+    }
 
-        return ngx_traffic_accounting_period_insert(
-                   period, &ngx_traffic_accounting_overflow_name, log);
+    /* organic ids equal to the reserved word merge into the same
+     * bucket, so a reserved name is always a single node */
+    if (ngx_traffic_accounting_name_eq(&clean, &ngx_traffic_accounting_overflow_name)) {
+        return ngx_traffic_accounting_period_reserved(period,
+                   &period->overflow_metrics,
+                   &ngx_traffic_accounting_overflow_name, log);
     }
 
     return ngx_traffic_accounting_period_insert(period, &clean, log);
