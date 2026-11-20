@@ -1,0 +1,54 @@
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  matrix:
+    name: ${{ matrix.variant }} / nginx ${{ matrix.nginx }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [both, http, stream]
+        nginx: ["1.26.2"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          tests/lib/build-nginx.sh -s "$GITHUB_WORKSPACE" \
+              -o "$RUNNER_TEMP/build" -v "${{ matrix.variant }}" \
+              --nginx-version "${{ matrix.nginx }}" --werror -j"$(nproc)"
+      - name: functional suite
+        run: tests/run-tests.sh "$RUNNER_TEMP/build/nginx" "${{ matrix.variant }}"
+
+  asan:
+    name: asan soak
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          tests/lib/build-nginx.sh -s "$GITHUB_WORKSPACE" \
+              -o "$RUNNER_TEMP/build" -v both --asan --werror -j"$(nproc)"
+      - name: functional suite
+        run: tests/run-tests.sh "$RUNNER_TEMP/build/nginx" both
+      - name: soak
+        run: tests/load/run-soak.sh "$RUNNER_TEMP/build/nginx" --total 30000 --rotations 6
+
+  load:
+    name: load conservation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          tests/lib/build-nginx.sh -s "$GITHUB_WORKSPACE" \
+              -o "$RUNNER_TEMP/build" -v both --werror -j"$(nproc)"
+      - name: conservation
+        run: |
+          tests/load/run-conservation.sh "$RUNNER_TEMP/build/nginx" \
+              --total 50000 --interval 5
