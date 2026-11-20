@@ -48,7 +48,28 @@ ACCT_LOG="$RUNDIR/accounting.log"
 PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
 
 CAP_LINE=""
-[[ "$MAX_METRICS" != "0" ]] && CAP_LINE="    accounting_max_metrics $MAX_METRICS;"
+ACTUAL_CAP=$MAX_METRICS
+if [[ "$MAX_METRICS" != "0" ]]; then
+    # probe directive support: pre-accounting_max_metrics builds reject it
+    PROBE=$RUNDIR/probe.conf
+    cat > "$PROBE" <<EOF
+error_log stderr error;
+pid $RUNDIR/nginx.pid;
+events { worker_connections 16; }
+http {
+    accounting on;
+    accounting_log $RUNDIR/accounting.log;
+    accounting_max_metrics $MAX_METRICS;
+}
+EOF
+    if "$NGINX_BIN" -p "$RUNDIR/" -c "$PROBE" -t -q >/dev/null 2>&1; then
+        CAP_LINE="    accounting_max_metrics $MAX_METRICS;"
+    else
+        echo "[conservation] note: build has no accounting_max_metrics; running uncapped" >&2
+        ACTUAL_CAP=0
+    fi
+    rm -f "$PROBE"
+fi
 cat > "$RUNDIR/nginx.conf" <<EOF
 worker_processes 2;
 error_log $RUNDIR/error.log warn;
@@ -119,7 +140,7 @@ conserved=1
 [[ "$EXPORTED" == "$TOTAL" ]] || conserved=0
 [[ "$OK_COUNT" == "$TOTAL" ]] || conserved=0
 [[ "$LOAD_RC" == 0 ]] || conserved=0
-if [[ $MAX_METRICS -ge $TOTAL && "$IDS" != "$TOTAL" ]]; then conserved=0; fi
+if [[ $ACTUAL_CAP -ge $TOTAL && "$IDS" != "$TOTAL" ]]; then conserved=0; fi
 
 echo "[$LABEL] dir=$RUNDIR"
 if [[ $conserved -eq 1 ]]; then
