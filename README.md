@@ -123,7 +123,7 @@ accounting_id
 --------------------
 **syntax:** *accounting_id \<accounting_id>*
 
-**default:** *accounting_id default*
+**default:** *accounting_id __default__*
 
 **context:** *http, stream, server, location, if in location*
 
@@ -140,6 +140,25 @@ accounting_interval
 **context:** *http, stream*
 
 Specifies the reporting interval.  Defaults to 60 seconds.
+Values outside `1s .. 30d` are clamped to that range (with a warning).
+
+accounting_max_metrics
+------------------------
+
+**syntax:** *accounting_max_metrics \<number>*
+
+**default:** *accounting_max_metrics 16384*
+
+**context:** *http, stream*
+
+Maximum number of distinct `accounting_id`s tracked per reporting
+interval, per worker process.  Once the limit is reached, further new
+ids are accounted under the reserved id `__overflow__` and an alert is
+logged once per interval.  Values outside `16 .. 1048576` are clamped
+(with a warning).
+
+Memory use is roughly 1 KB per tracked id per worker; raise the limit
+only if you legitimately serve more distinct ids than the default.
 
 accounting_perturb
 ------------------------
@@ -150,6 +169,35 @@ accounting_perturb
 **context:** *http, stream*
 
 Randomly staggers the reporting interval by 20% from the usual time.
+
+# Security hardening
+
+When `accounting_id` is derived from request-controlled variables (for
+example `$http_host`), the id crosses a trust boundary.  Ids are
+therefore normalized before they are used as metrics keys:
+
+- ids longer than **255 bytes** are truncated to their first 255 bytes;
+- control characters, `DEL` and the field separator `|` are replaced
+  by `_`, so exported log lines cannot be forged or misparsed;
+- the per-interval number of distinct ids is capped by
+  `accounting_max_metrics`.
+
+Two ids are reserved.  They share the same `__name__` form, so they
+are recognizable as module-generated in any dashboard, and the same
+rule: a real id that happens to equal a reserved word is simply merged
+into that bucket.
+
+- `__default__` — also the default value of the `accounting_id`
+  directive, so all unattributed traffic is accounted in one bucket:
+  locations without an `accounting_id`, and ids that are **empty or
+  unset** (for example HTTP/1.0 requests carry no `Host` header, so
+  `$http_host` is unset).  Such requests are never silently skipped,
+  and the bucket always gets its own node, even past the cap.
+- `__overflow__` — ids that would exceed the `accounting_max_metrics`
+  cap are accounted here; an alert is logged once per interval.
+
+Together with the per-interval cap these rules bound worker memory and
+export time even under adversarial traffic.
 
 # Usage
 

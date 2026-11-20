@@ -24,5 +24,8 @@ ngx_status_bsearch(ngx_uint_t status, ngx_uint_t statuses[], ngx_uint_t size)
 
 static int
 statuses_cmp(const void * a, const void * b) {
-   return ( *(int*)a - *(int*)b );
+   ngx_uint_t  x = *(const ngx_uint_t *) a;
+   ngx_uint_t  y = *(const ngx_uint_t *) b;
+
+   return (x > y) - (x < y);
 }

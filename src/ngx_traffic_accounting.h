@@ -20,6 +20,9 @@ ngx_uint_t ngx_status_bsearch(ngx_uint_t status, ngx_uint_t statuses[], ngx_uint
  * Period / Metrics
  */
 
+/* Maximum length of a stored accounting id; longer ids are truncated. */
+#define NGXTA_MAX_NAME_LEN  255
+
 typedef struct {
     ngx_rbtree_node_t   rbnode;
 
@@ -38,19 +41,26 @@ typedef struct {
     ngx_rbtree_t       rbtree;
     ngx_rbtree_node_t  sentinel;
 
-    ngx_time_t        *created_at;
-    ngx_time_t        *updated_at;
+    ngx_uint_t          nr_metrics;     /* metrics nodes currently held */
+    ngx_uint_t          max_metrics;    /* per-period accounting id cap */
+    ngx_uint_t          overflowed;     /* overflow bucket already in use */
+
+    /* reserved buckets (__default__ / __overflow__), referenced by
+     * identity rather than by name; they still live in the rbtree
+     * above and are exported and destroyed like any other node */
+    ngx_traffic_accounting_metrics_t   *default_metrics;
+    ngx_traffic_accounting_metrics_t   *overflow_metrics;
+
+    /* copied by value: never a pointer into the global cached time */
+    ngx_time_t          created_at;
+    ngx_time_t          updated_at;
 } ngx_traffic_accounting_period_t;
 
 ngx_int_t ngx_traffic_accounting_metrics_init(ngx_traffic_accounting_metrics_t *metrics, size_t len, ngx_log_t *log);
 
 ngx_int_t ngx_traffic_accounting_period_init(ngx_traffic_accounting_period_t *period);
-void ngx_traffic_accounting_period_insert(ngx_traffic_accounting_period_t *period, ngx_str_t *name, ngx_log_t *log);
-void ngx_traffic_accounting_period_insert_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics);
-void ngx_traffic_accounting_period_delete(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
-void ngx_traffic_accounting_period_delete_metrics(ngx_traffic_accounting_period_t *period, ngx_traffic_accounting_metrics_t *metrics);
-ngx_traffic_accounting_metrics_t * ngx_traffic_accounting_period_lookup_metrics(ngx_traffic_accounting_period_t *period, ngx_str_t *name);
 ngx_traffic_accounting_metrics_t * ngx_traffic_accounting_period_fetch_metrics(ngx_traffic_accounting_period_t *period, ngx_str_t *name, ngx_log_t *log);
+void ngx_traffic_accounting_period_destroy(ngx_traffic_accounting_period_t *period);
 
 typedef ngx_int_t (*ngx_traffic_accounting_period_iterate_func)(void *val, void *para1, void *para2);
 
