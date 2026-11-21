@@ -1,14 +1,22 @@
 #!/usr/bin/env bash
 #
-# Build a stock nginx with the traffic-accounting module statically linked in,
+# Build a stock nginx with the traffic-accounting module linked in,
 # from an arbitrary module source tree (so the same harness can test any
 # branch/commit without touching the working tree).
 #
 # Usage:
 #   build-nginx.sh -s <module-src-dir> -o <out-dir> [-v both|http|stream]
-#                  [--nginx-version 1.26.2] [--asan] [--werror] [-j N]
+#                  [--nginx-version 1.30.7] [--nginx-src <dir>] [--asan]
+#                  [--werror] [--cc <compiler>] [--with-compat] [--dynamic]
+#                  [-j N]
 #
-# Result: $out/nginx (binary), $out/nginx.version, $out/build.log
+# Result: $out/nginx (binary), $out/nginx.version
+#         (plus $out/*.so when --dynamic; logs: $out/configure.log, $out/make.log)
+# With --dynamic: also copies $out/*.so (the built dynamic modules) and the
+#   binary is linked against nothing extra -- load the .so files via
+#   load_module in the config to use the module.
+# --nginx-src accepts both release tarballs (top-level ./configure) and git
+#   checkouts (./auto/configure).
 # The build fails (non-zero exit) on any compiler warning when --werror is set.
 
 set -euo pipefail
@@ -16,9 +24,13 @@ set -euo pipefail
 MODULE_SRC=""
 OUT=""
 VARIANT=both
-NGINX_VERSION=${NGINX_VERSION:-1.26.2}
+NGINX_VERSION=${NGINX_VERSION:-1.30.7}
+NGINX_SRC=""
 ASAN=0
 WERROR=0
+CC=""
+COMPAT=0
+DYNAMIC=0
 JOBS=${JOBS:-$(nproc)}
 
 while [[ $# -gt 0 ]]; do
@@ -27,8 +39,12 @@ while [[ $# -gt 0 ]]; do
         -o) OUT=$2; shift 2;;
         -v) VARIANT=$2; shift 2;;
         --nginx-version) NGINX_VERSION=$2; shift 2;;
+        --nginx-src) NGINX_SRC=$2; shift 2;;
         --asan) ASAN=1; shift;;
         --werror) WERROR=1; shift;;
+        --cc) CC=$2; shift 2;;
+        --with-compat) COMPAT=1; shift;;
+        --dynamic) DYNAMIC=1; shift;;
         -j) JOBS=$2; shift 2;;
         -j*) JOBS=${1#-j}; shift;;
         *) echo "unknown option: $1" >&2; exit 2;;
@@ -47,7 +63,7 @@ CACHE_DIR=${NGX_TA_CACHE:-$HOME/.cache/traffic-accounting-tests}
 NGINX_SRC_CACHE="$CACHE_DIR/nginx-$NGINX_VERSION"
 TARBALL="$CACHE_DIR/nginx-$NGINX_VERSION.tar.gz"
 
-mkdir -p "$CACHE_DIR" "$OUT"
+mkdir -p "$OUT"
 OUT=$(cd "$OUT" && pwd)
 
 prepare_nginx_cache() {
@@ -72,7 +88,17 @@ prepare_nginx_cache() {
     ) 9>"$CACHE_DIR/.lock"
 }
 
-prepare_nginx_cache
+if [[ -n "$NGINX_SRC" ]]; then
+    # caller-provided nginx source tree (e.g. a mainline-tip snapshot);
+    # bypass the version-keyed cache entirely
+    NGINX_SRC=$(cd "$NGINX_SRC" && pwd)
+    [[ -f "$NGINX_SRC/src/core/nginx.c" && ( -f "$NGINX_SRC/configure" || -f "$NGINX_SRC/auto/configure" ) ]] \
+        || { echo "invalid nginx src dir: $NGINX_SRC (need src/core/nginx.c and configure or auto/configure)" >&2; exit 2; }
+    NGINX_SRC_CACHE="$NGINX_SRC"
+else
+    mkdir -p "$CACHE_DIR"
+    prepare_nginx_cache
+fi
 
 BUILD_TREE="$OUT/nginx-build"
 rm -rf "$BUILD_TREE"
@@ -94,13 +120,32 @@ if [[ $WERROR -eq 1 ]]; then
     CC_OPT="$CC_OPT -Werror"
 fi
 
-echo "configuring nginx $NGINX_VERSION [$VARIANT] asan=$ASAN werror=$WERROR" >&2
-(cd "$BUILD_TREE" && ./configure \
+CC_OPT_ARR=()
+if [[ -n "$CC" ]]; then
+    CC_OPT_ARR=(--with-cc="$CC")
+fi
+ADDON_MODE=--add-module
+if [[ $DYNAMIC -eq 1 ]]; then
+    ADDON_MODE=--add-dynamic-module
+fi
+COMPAT_OPT=()
+if [[ $COMPAT -eq 1 ]]; then
+    COMPAT_OPT=(--with-compat)
+fi
+
+# release tarballs ship ./configure; git checkouts only ./auto/configure
+CONF=./configure
+[[ -f "$BUILD_TREE/configure" ]] || CONF=./auto/configure
+
+echo "configuring nginx $NGINX_VERSION [$VARIANT] asan=$ASAN werror=$WERROR cc=${CC:-default} compat=$COMPAT dynamic=$DYNAMIC" >&2
+(cd "$BUILD_TREE" && $CONF \
     --prefix="$OUT/nginx-prefix" \
+    "${CC_OPT_ARR[@]}" \
     --with-cc-opt="$CC_OPT" \
     --with-ld-opt="$LD_OPT" \
     "${VARIANT_OPTS[@]}" \
-    --add-module="$MODULE_SRC" \
+    "${COMPAT_OPT[@]}" \
+    "$ADDON_MODE=$MODULE_SRC" \
 ) > "$OUT/configure.log" 2>&1 || { tail -40 "$OUT/configure.log" >&2; exit 1; }
 
 echo "building ..." >&2
@@ -112,5 +157,15 @@ if ! (cd "$BUILD_TREE" && make -j"$JOBS" >/dev/null); then
 fi
 
 cp "$BUILD_TREE/objs/nginx" "$OUT/nginx"
+if [[ $DYNAMIC -eq 1 ]]; then
+    shopt -s nullglob
+    so_files=("$BUILD_TREE"/objs/*.so)
+    shopt -u nullglob
+    if [[ ${#so_files[@]} -eq 0 ]]; then
+        echo "no .so files produced by the dynamic build" >&2
+        exit 1
+    fi
+    cp "${so_files[@]}" "$OUT/"
+fi
 "$OUT/nginx" -V 2>&1 | head -3 > "$OUT/nginx.version"
 echo "OK: $OUT/nginx" >&2
