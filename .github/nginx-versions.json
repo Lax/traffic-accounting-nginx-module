@@ -1,0 +1,8 @@
+{
+  "_readme": "Single source of truth for the nginx compatibility window tested by CI (see COMPATIBILITY.md). floor is the oldest version CI verifies and is only changed by hand. stable/mainline/previous_stable are the maintained upstream lines and are updated by the upstream-sentinel workflow, which validates them before opening a PR that changes this file. gen-matrix.py turns this file into the CI build matrix.",
+  "floor": "1.24.0",
+  "previous_stable": "1.28.3",
+  "stable": "1.30.7",
+  "mainline": "1.31.9",
+  "window_updated": "2026-11-21"
+}

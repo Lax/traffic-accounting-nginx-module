@@ -10,7 +10,10 @@ suite can be run against any branch, commit or pull request without touching
 the working tree:
 
 ```sh
-# 1. build (variants: both | http | stream; add --asan and/or --werror)
+# 1. build (variants: both | http | stream; add --asan and/or --werror;
+#    optional --cc clang, --with-compat, --nginx-version <v>, --dynamic
+#    (produce loadable .so files), --nginx-src <dir> (build a given nginx
+#    source tree, e.g. a mainline-tip snapshot))
 tests/lib/build-nginx.sh -s /path/to/module-source -o /tmp/build/pr -v both --werror
 
 # 2. functional suite (17 tests; stream tests auto-skip on http-only builds)
@@ -28,6 +31,11 @@ tests/load/run-conservation.sh /tmp/build/pr/nginx --total 20000 --interval 5 \
 
 # 5. ASAN soak (build with --asan first)
 tests/load/run-soak.sh /tmp/build/pr-asan/nginx --total 30000 --rotations 6
+
+# 6. dynamic module smoke (build with --dynamic first): load_module, account
+#    in both subsystems, survive SIGHUP reload
+tests/lib/build-nginx.sh -s . -o /tmp/build/dyn -v both --dynamic
+tests/dynamic-smoke.sh /tmp/build/dyn
 ```
 
 Layout
@@ -41,6 +49,7 @@ Layout
 | `lib/rawreq.py` | raw-byte HTTP sender (HTTP/1.0 without Host, header values with `\|`) |
 | `run-tests.sh` | functional suite runner |
 | `t/t01..t17` | functional tests (see below) |
+| `dynamic-smoke.sh` | dynamic-module smoke: load_module, both subsystems account, SIGHUP reload |
 | `load/genload.c` | epoll-based pipelined load generator with exact response accounting |
 | `load/run-conservation.sh` | conservation + export-spread measurement |
 | `load/run-soak.sh` | ASAN soak across many rotations |
@@ -71,6 +80,11 @@ Functional tests
 Notes
 -----
 
+- Tests assert module invariants.  Where upstream behavior varies across
+  nginx releases (e.g. nginx tightened Host-header validation in the
+  1.29/1.30 era, so `Host: p|q` is now a 400 instead of a deliverable
+  header), the suite probes the observed behavior at runtime and branches
+  the expectation on it -- never on version numbers.
 - `accounting_id` resolves a value as a variable only when the value is a
   single `$variable`; `prefix-$var` concatenation is treated as a literal.
 - Control/DEL bytes cannot reach module variables through nginx's own request

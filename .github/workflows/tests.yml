@@ -5,16 +5,35 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
+  window:
+    # The tested nginx version set comes from .github/nginx-versions.json
+    # (see COMPATIBILITY.md).  The upstream-sentinel workflow updates that
+    # file; this job turns it into the matrix, so a window bump needs no
+    # workflow edit.
+    name: version window
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+      stable: ${{ steps.gen.outputs.stable }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: gen
+        run: python3 .github/scripts/gen-matrix.py --github-output
+
   matrix:
     name: ${{ matrix.variant }} / nginx ${{ matrix.nginx }}
+    needs: window
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
-      matrix:
-        variant: [both, http, stream]
-        nginx: ["1.26.2"]
+      matrix: ${{ fromJson(needs.window.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - name: build
@@ -25,15 +44,73 @@ jobs:
       - name: functional suite
         run: tests/run-tests.sh "$RUNNER_TEMP/build/nginx" "${{ matrix.variant }}"
 
-  asan:
-    name: asan soak
+  clang:
+    # gcc and clang disagree on some diagnostics; keep one clang run per
+    # window so module code stays warning-clean under both.
+    name: clang / nginx ${{ needs.window.outputs.stable }}
+    needs: window
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: build
         run: |
           tests/lib/build-nginx.sh -s "$GITHUB_WORKSPACE" \
-              -o "$RUNNER_TEMP/build" -v both --asan --werror -j"$(nproc)"
+              -o "$RUNNER_TEMP/build" -v both --cc clang \
+              --nginx-version "${{ needs.window.outputs.stable }}" \
+              --werror -j"$(nproc)"
+      - name: functional suite
+        run: tests/run-tests.sh "$RUNNER_TEMP/build/nginx" both
+
+  compat:
+    # --with-compat widens the dynamic-module signature; downstream builds
+    # that load third-party modules compiled by other parties rely on it.
+    name: --with-compat / nginx ${{ needs.window.outputs.stable }}
+    needs: window
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          tests/lib/build-nginx.sh -s "$GITHUB_WORKSPACE" \
+              -o "$RUNNER_TEMP/build" -v both --with-compat \
+              --nginx-version "${{ needs.window.outputs.stable }}" \
+              --werror -j"$(nproc)"
+      - name: functional suite
+        run: tests/run-tests.sh "$RUNNER_TEMP/build/nginx" both
+
+  dynamic:
+    # The --add-dynamic-module build ships one .so registering both the HTTP
+    # and STREAM modules (see README); the static suite cannot catch a
+    # load-time regression, so smoke it: load, account, reload.
+    name: dynamic module smoke / nginx ${{ needs.window.outputs.stable }}
+    needs: window
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          tests/lib/build-nginx.sh -s "$GITHUB_WORKSPACE" \
+              -o "$RUNNER_TEMP/build" -v both --dynamic \
+              --nginx-version "${{ needs.window.outputs.stable }}" \
+              -j"$(nproc)"
+      - name: smoke
+        run: tests/dynamic-smoke.sh "$RUNNER_TEMP/build"
+
+  asan:
+    name: asan soak
+    needs: window
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          tests/lib/build-nginx.sh -s "$GITHUB_WORKSPACE" \
+              -o "$RUNNER_TEMP/build" -v both --asan --werror -j"$(nproc)" \
+              --nginx-version "${{ needs.window.outputs.stable }}"
       - name: functional suite
         run: |
           # nginx -t under ASAN exits non-zero when LeakSanitizer reports the
@@ -47,13 +124,16 @@ jobs:
 
   load:
     name: load conservation
+    needs: window
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - name: build
         run: |
           tests/lib/build-nginx.sh -s "$GITHUB_WORKSPACE" \
-              -o "$RUNNER_TEMP/build" -v both --werror -j"$(nproc)"
+              -o "$RUNNER_TEMP/build" -v both --werror -j"$(nproc)" \
+              --nginx-version "${{ needs.window.outputs.stable }}"
       - name: conservation
         run: |
           tests/load/run-conservation.sh "$RUNNER_TEMP/build/nginx" \

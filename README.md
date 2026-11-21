@@ -210,6 +210,12 @@ To collect logs with local syslog,
 refer [Lax/ngx_http_accounting_module-utils](http://github.com/Lax/ngx_http_accounting_module-utils) to for sample configuration / utils.
 
 ## docker / docker-compose
+
+The demo image compiles the module (and echo-nginx-module) as dynamic
+modules against the official `nginx:<version>-alpine` image, which ships
+`--with-compat`, so no nginx is compiled in the build (see
+[COMPATIBILITY.md](COMPATIBILITY.md)).
+
 To demonstrate with docker-compose, run
 
 ```
@@ -217,13 +223,26 @@ docker-compose build
 docker-compose up -d
 ```
 
+Running the nginx container outside docker-compose needs
+`--add-host logstash:127.0.0.1`: the sample configs ship metrics to the
+compose-internal `logstash` service over syslog, and nginx refuses to
+start when that hostname is unresolvable.
+
+**Restricted networks**: if build containers cannot reach nginx.org /
+github.com directly, copy [.env.example](.env.example) to `.env` and fill
+in a container-reachable proxy address (compose forwards it to the build
+automatically; empty values mean "no proxy", so plain environments need
+nothing). Direct `docker build` accepts the same values as `--build-arg`.
+Predefined proxy args never persist into the image.
+
 Open Grafana (address: `http://localhost:3000`) in your browser.
 
-Create and configurate elasticsearch datasource with options:
+The elasticsearch datasource is provisioned automatically from
+`samples/grafana/datasources/`. When creating it manually instead, use:
 ```
 Type: elasticsearch
 URL: http://elasticsearch:9200
-Version: 5.6+
+Version: 7.10+ (the compose stack ships Elasticsearch 8.17.9)
 Min time interval: 1m
 ```
 
@@ -329,6 +348,14 @@ Visualization with `Kibana` or `Grafana` is easy.
 See [samples/](samples/) for examples.
 
 ---
+
+# Supported nginx versions
+
+CI verifies the current stable, mainline and previous stable lines of nginx
+on every change, tracks upstream releases weekly (upstream-sentinel), and
+night-builds against the nginx development tip.  The supported window, the
+compatibility policy and the dynamic-module (.so) rules are documented in
+[COMPATIBILITY.md](COMPATIBILITY.md).
 
 # Branches
 

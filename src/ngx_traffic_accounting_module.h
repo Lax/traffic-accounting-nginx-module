@@ -8,6 +8,7 @@
 #define _NGX_TRAFFIC_ACCOUNTING_MODULE_H_INCLUDED_
 
 #include <ngx_core.h>
+#include "ngx_traffic_accounting_compat.h"
 #include "ngx_traffic_accounting.h"
 
 

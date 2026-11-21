@@ -311,10 +311,10 @@ ngx_http_accounting_request_handler(ngx_http_request_t *r)
 
         for (i = 0; i < r->upstream_states->nelts; i++) {
             if (state[i].status) {
-#if (nginx_version < 1009000)
-                ms += (state[i].response_sec * 1000 + state[i].response_msec);
-#else
+#ifdef NGXTA_HAVE_UPSTREAM_RESPONSE_TIME
                 ms += state[i].response_time;
+#else
+                ms += (state[i].response_sec * 1000 + state[i].response_msec);
 #endif
             }
         }

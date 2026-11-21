@@ -1,0 +1,41 @@
+name: mainline-tip
+
+# Early-warning build against the nginx development tip (GitHub mirror of
+# the official repository), run nightly.  API/structure changes that would
+# break third-party modules land here first, weeks before any release.
+#
+# Deliberately NOT -Werror: warnings on the tip are usually upstream's, not
+# ours.  Compile failure or functional-suite failure turns the job red,
+# which is the notification (GitHub notifies the workflow author about
+# scheduled failures).  A red tip job is a signal to investigate, never a
+# blocker for PRs or releases -- the release-gating matrix lives in
+# tests.yml.
+
+on:
+  schedule:
+    - cron: "0 5 * * *"   # daily, 05:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tip:
+    name: build + suite vs nginx master
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: fetch nginx master snapshot
+        run: |
+          mkdir -p "$RUNNER_TEMP/tip"
+          curl -fsSL -o "$RUNNER_TEMP/tip.tar.gz" \
+              https://github.com/nginx/nginx/archive/refs/heads/master.tar.gz
+          tar -xzf "$RUNNER_TEMP/tip.tar.gz" -C "$RUNNER_TEMP/tip" --strip-components=1
+      - name: build
+        run: |
+          tests/lib/build-nginx.sh -s "$GITHUB_WORKSPACE" \
+              -o "$RUNNER_TEMP/build" -v both \
+              --nginx-src "$RUNNER_TEMP/tip" -j"$(nproc)"
+      - name: functional suite
+        run: tests/run-tests.sh "$RUNNER_TEMP/build/nginx" both

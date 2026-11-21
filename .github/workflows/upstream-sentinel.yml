@@ -1,0 +1,241 @@
+name: upstream-sentinel
+
+# Watch nginx.org for new releases and keep the tested version window
+# (see COMPATIBILITY.md) in step with upstream:
+#
+#   unchanged        -> summary only
+#   changed, green   -> PR that updates .github/nginx-versions.json
+#                       (the tests.yml matrix follows the file automatically)
+#   changed, red     -> issue with the failing logs, baseline untouched
+#                       (the next weekly run re-detects and re-reports)
+#
+# The sentinel never merges anything: a human reviews the window PR.
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"   # weekly, Monday 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-sentinel
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: scan nginx.org
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.verdict.outputs.changed }}
+      versions: ${{ steps.verdict.outputs.versions }}
+      summary: ${{ steps.verdict.outputs.summary }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: parser selftest
+        run: python3 .github/scripts/scan-upstream.py selftest
+      - name: scan maintained lines
+        run: |
+          python3 .github/scripts/scan-upstream.py scan \
+              > "$RUNNER_TEMP/discovered.json"
+          cat "$RUNNER_TEMP/discovered.json"
+      - name: diff against baseline window
+        run: |
+          python3 .github/scripts/scan-upstream.py diff \
+              .github/nginx-versions.json "$RUNNER_TEMP/discovered.json" \
+              > "$RUNNER_TEMP/verdict.json"
+          cat "$RUNNER_TEMP/verdict.json"
+      - id: verdict
+        name: extract verdict
+        run: |
+          python3 - <<'EOF'
+          import json, os
+          v = json.load(open(os.path.join(os.environ["RUNNER_TEMP"], "verdict.json")))
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write("changed=%s\n" % ("true" if v["changed"] else "false"))
+              f.write("versions=%s\n" % " ".join(v["changed_versions"]))
+              f.write("summary<<SUMMARY_EOF\n%s\nSUMMARY_EOF\n" % v["summary"])
+          EOF
+      - name: job summary
+        if: always()
+        run: |
+          {
+            echo "## nginx window scan"
+            echo ""
+            if [[ -f "$RUNNER_TEMP/discovered.json" ]]; then
+              echo "- discovered: $(python3 -c 'import json;d=json.load(open("'$RUNNER_TEMP'/discovered.json"));print("stable=%s mainline=%s previous_stable=%s" % (d["stable"], d["mainline"], d["previous_stable"]))')"
+            else
+              echo "- discovered: (scan failed, see the failing step above)"
+            fi
+            echo "- verdict: ${SUMMARY:-n/a}"
+            echo "- baseline: $(python3 -c 'import json;d=json.load(open(".github/nginx-versions.json"));print("stable=%s mainline=%s previous_stable=%s floor=%s" % (d["stable"], d["mainline"], d["previous_stable"], d["floor"]))')"
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          SUMMARY: ${{ steps.verdict.outputs.summary }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sentinel-scan
+          path: |
+            ${{ runner.temp }}/discovered.json
+            ${{ runner.temp }}/verdict.json
+          retention-days: 14
+
+  validate:
+    name: validate changed versions
+    needs: scan
+    if: needs.scan.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      all_green: ${{ steps.validate.outputs.all_green }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: validate
+        name: build + functional suite per changed version
+        run: |
+          mkdir -p "$RUNNER_TEMP/logs"
+          rc_all=0
+          for v in ${{ needs.scan.outputs.versions }}; do
+            echo "=== validating nginx $v ==="
+            if ! tests/lib/build-nginx.sh -s "$GITHUB_WORKSPACE" \
+                    -o "$RUNNER_TEMP/build-$v" -v both \
+                    --nginx-version "$v" --werror -j"$(nproc)" \
+                    > "$RUNNER_TEMP/logs/build-$v.log" 2>&1; then
+              echo "$v" >> "$RUNNER_TEMP/failed.txt"
+              rc_all=1
+              continue
+            fi
+            if ! tests/run-tests.sh "$RUNNER_TEMP/build-$v/nginx" both \
+                    > "$RUNNER_TEMP/logs/test-$v.log" 2>&1; then
+              echo "$v" >> "$RUNNER_TEMP/failed.txt"
+              rc_all=1
+            fi
+          done
+          if [[ $rc_all -eq 0 ]]; then
+            echo "all_green=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "all_green=false" >> "$GITHUB_OUTPUT"
+            for v in $(cat "$RUNNER_TEMP/failed.txt"); do
+              echo "### nginx $v" >> "$RUNNER_TEMP/logs/brief.md"
+              echo '```' >> "$RUNNER_TEMP/logs/brief.md"
+              tail -30 "$RUNNER_TEMP/logs/build-$v.log" >> "$RUNNER_TEMP/logs/brief.md" 2>/dev/null || true
+              tail -30 "$RUNNER_TEMP/logs/test-$v.log" >> "$RUNNER_TEMP/logs/brief.md" 2>/dev/null || true
+              echo '```' >> "$RUNNER_TEMP/logs/brief.md"
+            done
+          fi
+      - name: fail the validate job on red versions
+        # make validation failures visible here too, not only via the
+        # report job's issue; the report job runs regardless (always()).
+        run: |
+          if [[ "${{ steps.validate.outputs.all_green }}" != "true" ]]; then
+            echo "validation failed for: $(cat "$RUNNER_TEMP/failed.txt" 2>/dev/null || echo '<unknown>')" >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sentinel-logs
+          path: ${{ runner.temp }}/logs
+          retention-days: 14
+
+  report:
+    name: report verdict
+    needs: [scan, validate]
+    if: always() && needs.scan.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: sentinel-scan
+          path: scan-artifacts
+      - uses: actions/download-artifact@v4
+        if: needs.validate.outputs.all_green != 'true'
+        with:
+          name: sentinel-logs
+          path: logs
+        continue-on-error: true   # artifact absent when validate died early
+
+      - name: apply validated window
+        if: needs.validate.outputs.all_green == 'true'
+        run: |
+          python3 - <<'EOF'
+          import json
+          v = json.load(open("scan-artifacts/verdict.json"))
+          assert v["changed"], "verdict changed between jobs, aborting"
+          with open(".github/nginx-versions.json", "w") as f:
+              json.dump(v["proposed"], f, indent=2)
+              f.write("\n")
+          print("window applied:", v["summary"])
+          EOF
+          cat .github/nginx-versions.json
+
+      - name: open window PR
+        if: needs.validate.outputs.all_green == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          SUMMARY="${{ needs.scan.outputs.summary }}"
+          BR="nginx-window-$(date +%Y%m%d)-$GITHUB_RUN_ID"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BR"
+          git add .github/nginx-versions.json
+          git commit -m "nginx window update: $SUMMARY"
+          git push origin "$BR"
+          {
+            echo "## nginx window update"
+            echo ""
+            echo "$SUMMARY"
+            echo ""
+            echo "Validated green by upstream-sentinel (build + functional suite, \`both\` variant):"
+            echo ""
+            for v in ${{ needs.scan.outputs.versions }}; do
+              echo "- nginx $v"
+            done
+            echo ""
+            echo "The tests.yml matrix follows \`.github/nginx-versions.json\` automatically."
+            echo "Merging this PR is the window bump; nothing else needs editing."
+          } > pr-body.md
+          gh pr create \
+              --title "nginx window update: $SUMMARY" \
+              --body-file pr-body.md \
+              --base master --head "$BR"
+
+      - name: open issue on validation failure
+        if: needs.validate.outputs.all_green != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="nginx window update failed validation"
+          BODY=issue-body.md
+          {
+            echo "## nginx window update failed validation"
+            echo ""
+            echo "nginx.org now advertises: ${{ needs.scan.outputs.summary }}"
+            echo ""
+            echo "The baseline was **not** changed; the next weekly run will"
+            echo "re-detect and re-report until adapted or the baseline is"
+            echo "updated by hand (floor is always manual, see COMPATIBILITY.md)."
+            echo ""
+            echo "Changed versions validated: ${{ needs.scan.outputs.versions }}"
+            echo ""
+            echo "Full per-version build/test logs: workflow artifact \`sentinel-logs\`."
+          } > "$BODY"
+          # attach the failing logs' tails when validate produced a brief
+          if [[ -f logs/brief.md ]]; then
+            echo "### failing logs (tails)" >> "$BODY"
+            cat logs/brief.md >> "$BODY"
+          fi
+          existing=$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number' || true)
+          if [[ -n "${existing:-}" ]]; then
+            gh issue comment "$existing" --body-file "$BODY"
+            echo "updated existing issue #$existing"
+          else
+            gh issue create --title "$TITLE" --body-file "$BODY"
+          fi
