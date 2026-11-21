@@ -1,11 +1,14 @@
-version: '3.6'
-
 services:
   elasticsearch:
     labels:
       com.example.service: "es"
       com.example.description: "For searching and indexing data"
-    image: elasticsearch
+    # security disabled: demo-only, keep the dashboard flow passwordless
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.9
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
     networks:
       - elk
     volumes:
@@ -14,31 +17,59 @@ services:
         target: /usr/share/elasticsearch/data/
     ports:
       - "9200:9200"
+    healthcheck:
+      # gates logstash (and nginx, whose syslog target must resolve) so a
+      # cold start cannot race logstash's Elasticsearch bootstrap
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/ >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
 
   logstash:
     labels:
       com.example.service: "logstash"
       com.example.description: "For logging data"
-    image: logstash
+    image: docker.elastic.co/logstash/logstash:8.17.9
+    environment:
+      - LS_JAVA_OPTS=-Xms256m -Xmx256m
     networks:
       - elk
     volumes:
       - ./samples/logstash:/etc/logstash
-    command: logstash -f /etc/logstash/logstash.conf
+    # ecs_compatibility=disabled: the sample conf predates ECS field naming
+    command: logstash -f /etc/logstash/logstash.conf --pipeline.ecs_compatibility disabled
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
+      es-template-init:
+        condition: service_completed_successfully
+
+  # one-shot: install the accounting index template via the legacy
+  # _template API; must complete before logstash starts indexing
+  es-template-init:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.9
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./samples/logstash/es_template_accounting.json:/es_template_accounting.json:ro
+    entrypoint: ["curl", "-fsS", "-X", "PUT", "http://elasticsearch:9200/_template/ngx_accounting", "-H", "Content-Type: application/json", "-d", "@/es_template_accounting.json"]
+    restart: "no"
+    networks:
+      - elk
 
   kibana:
     labels:
       com.example.service: "kibana"
       com.example.description: "Data visualisation and for log aggregation"
-    image: kibana
+    image: docker.elastic.co/kibana/kibana:8.17.9
     networks:
       - elk
     ports:
       - "5601:5601"
     environment:
-      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
     depends_on:
       - elasticsearch
 

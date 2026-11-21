@@ -237,11 +237,12 @@ Predefined proxy args never persist into the image.
 
 Open Grafana (address: `http://localhost:3000`) in your browser.
 
-Create and configurate elasticsearch datasource with options:
+The elasticsearch datasource is provisioned automatically from
+`samples/grafana/datasources/`. When creating it manually instead, use:
 ```
 Type: elasticsearch
 URL: http://elasticsearch:9200
-Version: 5.6+
+Version: 7.10+ (the compose stack ships Elasticsearch 8.17.9)
 Min time interval: 1m
 ```
 
