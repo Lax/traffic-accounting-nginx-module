@@ -18,15 +18,17 @@ RUN apk add --no-cache build-base curl pcre2-dev zlib-dev openssl-dev
 ADD . /opt/ta
 
 WORKDIR /src
+# echo-nginx-module pinned to its latest release (v0.66) for reproducible
+# builds; bump deliberately, not by tracking master.
 RUN curl -fsSL -o /tmp/nginx.tar.gz \
         https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz \
     && curl -fsSL -o /tmp/echo.tar.gz -L \
-        https://github.com/openresty/echo-nginx-module/archive/master.tar.gz \
+        https://github.com/openresty/echo-nginx-module/archive/refs/tags/v0.66.tar.gz \
     && tar -xzf /tmp/nginx.tar.gz --strip-components=1 \
     && tar -xzf /tmp/echo.tar.gz \
     && ./configure --with-compat --with-stream \
         --add-dynamic-module=/opt/ta \
-        --add-dynamic-module=echo-nginx-module-master \
+        --add-dynamic-module=echo-nginx-module-0.66 \
     && make modules
 
 FROM nginx:${NGX_TAG}

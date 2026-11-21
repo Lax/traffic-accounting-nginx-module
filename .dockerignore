@@ -1,0 +1,14 @@
+# Keep the demo build context small and clean: the builder does
+# `ADD . /opt/ta`, so anything listed here never reaches the image.
+.git
+.env
+.v2c/
+.video_agent/
+.github/
+tests/
+docs/
+*.md
+docker-compose*.yml
+.dockerignore
+samples/grafana
+samples/logstash
