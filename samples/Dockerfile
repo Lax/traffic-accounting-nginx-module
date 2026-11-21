@@ -1,10 +1,13 @@
-FROM centos as builder
+FROM quay.io/centos/centos:stream9 AS builder
 
 RUN yum install gcc make pcre-devel zlib-devel openssl-devel -y \
     && yum clean all
 
 ENV PREFIX /opt/nginx
-ENV NGX_VER 1.16.0
+# 1.30.7 (2026-11-18) is the current stable release; it carries the same
+# security batch as mainline 1.31.9.  Bump this line when the upstream
+# sentinel opens its weekly window PR.
+ENV NGX_VER 1.30.7
 
 ENV WORKDIR /src
 ENV NGX_SRC_DIR ${WORKDIR}/nginx-${NGX_VER}
@@ -27,7 +30,7 @@ RUN ./configure --prefix=${PREFIX} \
     && make -s && make -s install
 
 
-FROM centos
+FROM quay.io/centos/centos:stream9
 
 ENV PREFIX /opt/nginx
 ENV CONFIG_VER $(date)
