@@ -1,56 +1,51 @@
-FROM quay.io/centos/centos:stream9 AS builder
+# Demo image: official nginx base + this module (and echo-nginx-module) as
+# dynamic modules compiled against the image's own nginx source.
+#
+# Why not compile nginx here: the official image is built with
+# --with-compat and --with-stream, so third-party .so modules compiled
+# against the matching nginx source load into it (verified: load_module,
+# accounting, echo all work).  nginx security updates therefore come from
+# rebasing on a newer official tag instead of recompiling nginx here.
+#
+# NGX_TAG should track the window stable tested by CI (see COMPATIBILITY.md);
+# bump it when the upstream-sentinel workflow opens its window PR.
+ARG NGX_TAG=1.30.7-alpine
 
-RUN yum install gcc make pcre-devel zlib-devel openssl-devel -y \
-    && yum clean all
+FROM nginx:${NGX_TAG} AS builder
 
-ENV PREFIX /opt/nginx
-# 1.30.7 (2026-11-18) is the current stable release; it carries the same
-# security batch as mainline 1.31.9.  Bump this line when the upstream
-# sentinel opens its weekly window PR.
-ENV NGX_VER 1.30.7
+RUN apk add --no-cache build-base curl pcre2-dev zlib-dev openssl-dev
 
-ENV WORKDIR /src
-ENV NGX_SRC_DIR ${WORKDIR}/nginx-${NGX_VER}
-ENV NGX_URL https://nginx.org/download/nginx-${NGX_VER}.tar.gz
-ENV NGX_HTTP_ECHO_URL https://github.com/openresty/echo-nginx-module/archive/master.tar.gz
+ADD . /opt/ta
 
-WORKDIR ${WORKDIR}
+WORKDIR /src
+RUN curl -fsSL -o /tmp/nginx.tar.gz \
+        https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz \
+    && curl -fsSL -o /tmp/echo.tar.gz -L \
+        https://github.com/openresty/echo-nginx-module/archive/master.tar.gz \
+    && tar -xzf /tmp/nginx.tar.gz --strip-components=1 \
+    && tar -xzf /tmp/echo.tar.gz \
+    && ./configure --with-compat --with-stream \
+        --add-dynamic-module=/opt/ta \
+        --add-dynamic-module=echo-nginx-module-master \
+    && make modules
 
-RUN tar zxf `curl -SLOs -w'%{filename_effective}' ${NGX_URL}` -C ${WORKDIR} \
-    && tar zxf `curl -SLJOs -w'%{filename_effective}' ${NGX_HTTP_ECHO_URL}` -C ${NGX_SRC_DIR}
+FROM nginx:${NGX_TAG}
 
-WORKDIR ${NGX_SRC_DIR}
-ADD . traffic-accounting-nginx-module
-RUN ./configure --prefix=${PREFIX} \
-    --with-stream \
-    --add-dynamic-module=traffic-accounting-nginx-module \
-    --add-dynamic-module=echo-nginx-module-master \
-    --http-log-path=/dev/stdout \
-    --error-log-path=/dev/stderr \
-    && make -s && make -s install
+COPY --from=builder /src/objs/*.so /usr/lib/nginx/modules/
 
+# accounting logs follow the docker convention: container logs are visible
+# via `docker logs` (metrics also go to logstash over syslog, see confs);
+# the sample confs resolve "html" relative to the prefix, which in the
+# official image is /usr/share/nginx/html
+RUN ln -sf /dev/stderr /var/log/nginx/http-accounting.log \
+    && ln -sf /dev/stderr /var/log/nginx/stream-accounting.log \
+    && ln -sfn /usr/share/nginx/html /etc/nginx/html
 
-FROM quay.io/centos/centos:stream9
-
-ENV PREFIX /opt/nginx
-ENV CONFIG_VER $(date)
-
-COPY --from=builder ${PREFIX} ${PREFIX}
-
-WORKDIR ${PREFIX}
-
-RUN ln -sf /dev/stdout ${PREFIX}/logs/access.log \
-    && ln -sf /dev/stderr ${PREFIX}/logs/http-accounting.log \
-    && ln -sf /dev/stderr ${PREFIX}/logs/stream-accounting.log \
-    && ln -sf /dev/stderr ${PREFIX}/logs/error.log \
-    && ln -sf ../usr/share/zoneinfo/Asia/Shanghai /etc/localtime
-
-ADD samples/nginx.conf ${PREFIX}/conf/nginx.conf
-ADD samples/http.conf ${PREFIX}/conf/http.conf
-ADD samples/stream.conf ${PREFIX}/conf/stream.conf
+COPY samples/nginx.conf /etc/nginx/nginx.conf
+COPY samples/http.conf /etc/nginx/http.conf
+COPY samples/stream.conf /etc/nginx/stream.conf
 
 EXPOSE 8080
 EXPOSE 8888
 EXPOSE 9999
 STOPSIGNAL SIGTERM
-ENTRYPOINT ["./sbin/nginx", "-g", "daemon off;"]

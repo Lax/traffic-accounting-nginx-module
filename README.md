@@ -210,12 +210,23 @@ To collect logs with local syslog,
 refer [Lax/ngx_http_accounting_module-utils](http://github.com/Lax/ngx_http_accounting_module-utils) to for sample configuration / utils.
 
 ## docker / docker-compose
+
+The demo image compiles the module (and echo-nginx-module) as dynamic
+modules against the official `nginx:<version>-alpine` image, which ships
+`--with-compat`, so no nginx is compiled in the build (see
+[COMPATIBILITY.md](COMPATIBILITY.md)).
+
 To demonstrate with docker-compose, run
 
 ```
 docker-compose build
 docker-compose up -d
 ```
+
+Running the nginx container outside docker-compose needs
+`--add-host logstash:127.0.0.1`: the sample configs ship metrics to the
+compose-internal `logstash` service over syslog, and nginx refuses to
+start when that hostname is unresolvable.
 
 Open Grafana (address: `http://localhost:3000`) in your browser.
 

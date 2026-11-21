@@ -51,6 +51,9 @@ untested; the pre-v2 tags in this repository cover ancient nginx lines).
   investigate upstream, never a merge blocker.
 - Additional jobs on the current `stable` only: clang build, `--with-compat`
   build, dynamic-module smoke, ASAN soak, load conservation.
+- The demo image (`samples/Dockerfile`) pins `NGX_TAG` to the same window
+  stable on the official `nginx:<version>-alpine` image; when reviewing a
+  sentinel window PR, bump that tag in the same commit if a release moved.
 
 To run the whole compatibility check locally:
 
