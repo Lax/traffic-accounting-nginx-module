@@ -77,7 +77,7 @@ services:
     labels:
       com.example.service: "grafana"
       com.example.description: "Data visualisation"
-    image: grafana/grafana
+    image: grafana/grafana:13.3.1
     networks:
       - elk
     ports:
