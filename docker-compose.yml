@@ -63,6 +63,14 @@ services:
     build:
       context: .
       dockerfile: samples/Dockerfile
+      # Restricted-network environments: put container-reachable proxy
+      # addresses in a local .env (see .env.example).  Empty values are
+      # treated as "no proxy" by curl, so plain environments are unaffected.
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        ALL_PROXY: ${ALL_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-localhost,127.0.0.0/8,*.local}
     networks:
       - nginx
       - elk

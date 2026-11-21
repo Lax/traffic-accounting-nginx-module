@@ -228,6 +228,13 @@ Running the nginx container outside docker-compose needs
 compose-internal `logstash` service over syslog, and nginx refuses to
 start when that hostname is unresolvable.
 
+**Restricted networks**: if build containers cannot reach nginx.org /
+github.com directly, copy [.env.example](.env.example) to `.env` and fill
+in a container-reachable proxy address (compose forwards it to the build
+automatically; empty values mean "no proxy", so plain environments need
+nothing). Direct `docker build` accepts the same values as `--build-arg`.
+Predefined proxy args never persist into the image.
+
 Open Grafana (address: `http://localhost:3000`) in your browser.
 
 Create and configurate elasticsearch datasource with options:
