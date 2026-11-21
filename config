@@ -2,6 +2,7 @@ ngx_addon_name="traffic-accounting-nginx-module"
 
 TRAFFIC_ACCOUNTING_DEPS=" \
     $ngx_addon_dir/src/ngx_traffic_accounting.h \
+    $ngx_addon_dir/src/ngx_traffic_accounting_compat.h \
     $ngx_addon_dir/src/ngx_traffic_accounting_module.h \
     "
 TRAFFIC_ACCOUNTING_SRCS=" \
