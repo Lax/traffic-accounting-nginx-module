@@ -330,6 +330,14 @@ See [samples/](samples/) for examples.
 
 ---
 
+# Supported nginx versions
+
+CI verifies the current stable, mainline and previous stable lines of nginx
+on every change, tracks upstream releases weekly (upstream-sentinel), and
+night-builds against the nginx development tip.  The supported window, the
+compatibility policy and the dynamic-module (.so) rules are documented in
+[COMPATIBILITY.md](COMPATIBILITY.md).
+
 # Branches
 
 * master : main development branch.
