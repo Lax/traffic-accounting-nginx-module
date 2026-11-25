@@ -53,6 +53,7 @@ Layout
 | `load/genload.c` | epoll-based pipelined load generator with exact response accounting |
 | `load/run-conservation.sh` | conservation + export-spread measurement |
 | `load/run-soak.sh` | ASAN soak across many rotations |
+| `governance/workflow-token-probe.yml` | not a test and not an installed workflow: the instrument behind "What keeps automation off master" (COMPATIBILITY.md), kept with the steps to repeat the measurement |
 
 Functional tests
 ----------------
