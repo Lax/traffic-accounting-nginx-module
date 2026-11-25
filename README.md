@@ -33,19 +33,34 @@ For each time period (defined by `interval`), a timer event is triggered, those
 
 # Quickstart
 
-Download pre-build binaries from [Releases](https://github.com/Lax/traffic-accounting-nginx-module/releases),
-place them into `./modules` sub-directory of `nginx`.
+Build the module into nginx from source -- the supported way to install it:
 
-Add following lines at the beginning of `nginx.conf`:
-
-```
-# for combined or HTTP-only build
-load_module modules/ngx_http_accounting_module.so;
+```sh
+# inside the nginx source tree (grab it from nginx.org)
+./configure --with-stream --add-module=/path/to/traffic-accounting-nginx-module
+make && sudo make install
 ```
 
-Reload nginx config with `nginx -s reload`. *Done!*
+Turn accounting on in `nginx.conf` and reload with `nginx -s reload`:
 
-*Alternatively, you can install this module manually with the Nginx source, see the [installation instructions](#Installation)*
+```nginx
+http {
+    accounting      on;
+    accounting_log  logs/http-accounting.log;
+    accounting_id   $host;
+}
+```
+
+Every directive is described under [Configuration](#configuration); dynamic
+builds (`--add-dynamic-module`, which need `load_module`) are covered in
+[Installation](#installation).
+
+**Prebuilt `.so` files on the Releases page:** the ones attached to v3.0.0
+(May 2026) are musl-linked x86-64 objects, so they cannot load into
+glibc-based nginx builds (distribution packages, the official Debian image),
+and that code predates the security and accounting-integrity fixes on
+master.  Build from source instead; the rules that decide whether a given
+`.so` loads into a given nginx are in [COMPATIBILITY.md](COMPATIBILITY.md).
 
 ---
 
@@ -284,9 +299,7 @@ which contains a list of key-values.
 
 There are several ways to integrate traffic accounting functions into NGINX.
 
-* Download pre-build binaries from [Releases](https://github.com/Lax/traffic-accounting-nginx-module/releases).
-
-* Build the binaries from sources
+* Build the binaries from sources (recommended)
 
 ```
 # grab nginx source code from nginx.org, then cd to /path/to/nginx-src/
@@ -352,7 +365,7 @@ See [samples/](samples/) for examples.
 # Supported nginx versions
 
 CI verifies the current stable, mainline and previous stable lines of nginx
-on every change, tracks upstream releases weekly (upstream-sentinel), and
+on every change, tracks upstream releases daily (upstream-sentinel), and
 night-builds against the nginx development tip.  The supported window, the
 compatibility policy and the dynamic-module (.so) rules are documented in
 [COMPATIBILITY.md](COMPATIBILITY.md).
