@@ -13,7 +13,10 @@ name: mainline-tip
 
 on:
   schedule:
-    - cron: "0 5 * * *"   # daily, 05:00 UTC
+    # Off the hour: GitHub's scheduler is busiest at the top of every hour
+    # and on-the-hour schedules here ran roughly 8-10.5h late
+    # (observed 2026-11-22..24).
+    - cron: "41 5 * * *"   # daily, 05:41 UTC
   workflow_dispatch:
 
 permissions:
