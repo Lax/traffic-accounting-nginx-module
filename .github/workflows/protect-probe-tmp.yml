@@ -1,0 +1,50 @@
+name: protect-probe-tmp
+# TEMPORARY -- deleted together with its branch.  Measures whether a workflow
+# token holding contents: write can write to a branch that carries the same
+# protection rules as master.  Throw-away branches only; master is not
+# touched.
+on:
+  pull_request:
+    branches: [probe-base-tmp]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          git config user.name "protection-probe"
+          git config user.email "protection-probe@users.noreply.github.com"
+          git commit --allow-empty -q -m "probe: empty commit"
+          echo "PROBE_TOKEN_IDENTITY=$(gh api graphql -f query='{viewer{login}}' --jq .data.viewer.login 2>/dev/null)"
+
+          echo "--- control: push to an UNPROTECTED branch ---"
+          git push origin "HEAD:refs/heads/probe-unprotected-tmp" > push1.log 2>&1; rc1=$?
+          tail -5 push1.log
+          [ $rc1 -eq 0 ] && echo "PROBE_CONTROL_UNPROTECTED=ACCEPTED" || echo "PROBE_CONTROL_UNPROTECTED=REJECTED"
+
+          echo "--- test A: push to a PROTECTED branch (same rules as master) ---"
+          git push origin "HEAD:refs/heads/protect-probe-tmp" > push2.log 2>&1; rc2=$?
+          tail -8 push2.log
+          [ $rc2 -eq 0 ] && echo "PROBE_A_PUSH_PROTECTED=ACCEPTED" || echo "PROBE_A_PUSH_PROTECTED=REJECTED"
+
+          echo "--- test B: bot opens a PR onto the protected branch, then merges it WITHOUT admin ---"
+          url=$(gh pr create --base protect-probe-tmp --head probe-unprotected-tmp \
+                  --title "probe: bot-opened PR onto a protected branch" \
+                  --body "Temporary; created by the protection probe. Not to be merged by anyone." 2> prc.log)
+          rc3=$?; tail -3 prc.log
+          if [ $rc3 -ne 0 ]; then
+            echo "PROBE_B_PR_CREATE=FAILED"
+          else
+            echo "PROBE_B_PR_CREATE=ACCEPTED"
+            num=${url##*/}
+            gh pr merge "$num" --merge > merge.log 2>&1; rc4=$?
+            tail -6 merge.log
+            [ $rc4 -eq 0 ] && echo "PROBE_B_MERGE_PROTECTED=ACCEPTED" || echo "PROBE_B_MERGE_PROTECTED=REJECTED"
+          fi
