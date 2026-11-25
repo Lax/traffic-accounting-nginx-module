@@ -95,6 +95,13 @@ if [[ -n "$NGINX_SRC" ]]; then
     [[ -f "$NGINX_SRC/src/core/nginx.c" && ( -f "$NGINX_SRC/configure" || -f "$NGINX_SRC/auto/configure" ) ]] \
         || { echo "invalid nginx src dir: $NGINX_SRC (need src/core/nginx.c and configure or auto/configure)" >&2; exit 2; }
     NGINX_SRC_CACHE="$NGINX_SRC"
+    # A git checkout has no release number anywhere but its header.  Read it
+    # so the log states what was really built: with the default left in
+    # place, a mainline-tip build used to announce "configuring nginx 1.30.7".
+    NGINX_VERSION=$(sed -n 's/^#define[[:space:]][[:space:]]*NGINX_VERSION[[:space:]][[:space:]]*"\([^"]*\)".*/\1/p' \
+        "$NGINX_SRC/src/core/nginx.h" | head -1)
+    [[ -n "$NGINX_VERSION" ]] \
+        || { echo "cannot read NGINX_VERSION from $NGINX_SRC/src/core/nginx.h" >&2; exit 2; }
 else
     mkdir -p "$CACHE_DIR"
     prepare_nginx_cache
@@ -168,4 +175,6 @@ if [[ $DYNAMIC -eq 1 ]]; then
     cp "${so_files[@]}" "$OUT/"
 fi
 "$OUT/nginx" -V 2>&1 | head -3 > "$OUT/nginx.version"
-echo "OK: $OUT/nginx" >&2
+# state the version of the binary actually produced, so every build log
+# (nightly tip runs included) shows what was tested
+echo "OK: $OUT/nginx ($(sed -n '1s/^nginx version: //p' "$OUT/nginx.version"))" >&2
