@@ -1,0 +1,22 @@
+name: tag-probe-tmp
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: attempt to create a tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          git fetch -q origin master --depth=1
+          tip=$(git rev-parse FETCH_HEAD)
+          git tag vprobe-tmp "$tip"
+          git push origin vprobe-tmp > out.log 2>&1; rc=$?
+          echo "push rc=$rc"
+          grep -vE '^(To |\*)' out.log | head -6
+          [ $rc -eq 0 ] && echo "PROBE_TAG_CREATE=ACCEPTED" || echo "PROBE_TAG_CREATE=REJECTED"
