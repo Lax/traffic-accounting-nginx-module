@@ -4,7 +4,9 @@ build matrix.
 
 Single source of truth: .github/workflows/tests.yml reads the matrix and the
 stable version from this script, and the upstream-sentinel workflow updates
-the same JSON file -- a window bump therefore needs exactly one file change.
+the same JSON file.  A window bump is two coordinated edits -- the JSON and
+the demo image tag in samples/Dockerfile -- and this script fails when they
+disagree, so a bump cannot leave the demo behind by accident.
 
 Variant coverage:
   stable, mainline        both + http + stream  (full variant matrix)
@@ -21,9 +23,11 @@ import re
 import sys
 
 BASELINE = os.path.join(os.path.dirname(__file__), "..", "nginx-versions.json")
+DOCKERFILE = os.path.join(os.path.dirname(__file__), "..", "..", "samples", "Dockerfile")
 FULL_VARIANTS = ("both", "http", "stream")
 
 VERSION_SHAPE = re.compile(r"^\d+\.\d+\.\d+$")
+NGX_TAG_LINE = re.compile(r"^ARG NGX_TAG=(\S+)[ \t]*$", re.M)
 
 
 def version_key(v):
@@ -55,6 +59,29 @@ def load_window():
     return window
 
 
+def demo_tag():
+    """NGX_TAG default of the demo image (samples/Dockerfile)."""
+    with open(DOCKERFILE) as f:
+        m = NGX_TAG_LINE.search(f.read())
+    if not m:
+        raise SystemExit("samples/Dockerfile: cannot find an 'ARG NGX_TAG=<tag>' line")
+    return m.group(1)
+
+
+def check_demo_tag(stable):
+    """The demo image must run the same nginx that CI calls the window
+    stable; without this check a window bump that only edits the JSON would
+    leave the demo on an older nginx than the one being tested."""
+    expected = stable + "-alpine"
+    actual = demo_tag()
+    if actual != expected:
+        raise SystemExit(
+            "demo image tag out of sync with the version window: "
+            "samples/Dockerfile has NGX_TAG=%s but stable is %s. "
+            "Set 'ARG NGX_TAG=%s' together with .github/nginx-versions.json "
+            "(see COMPATIBILITY.md)." % (actual, stable, expected))
+
+
 def build_matrix(window):
     entries = []          # [{nginx, variants}]
     by_version = {}
@@ -81,8 +108,9 @@ def build_matrix(window):
 def main():
     github_output = "--github-output" in sys.argv[1:]
     window = load_window()
-    matrix_json = json.dumps(build_matrix(window), separators=(",", ":"))
     stable = window["stable"]
+    check_demo_tag(stable)
+    matrix_json = json.dumps(build_matrix(window), separators=(",", ":"))
 
     print(matrix_json)
 
