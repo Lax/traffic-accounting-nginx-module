@@ -14,10 +14,10 @@ jobs:
   policy:
     # What keeps automation off `master` is the arrangement of permissions
     # and scripts in the workflow files themselves (see "What keeps
-    # automation off master" in COMPATIBILITY.md).  Check it on every run,
-    # so that changing it is a reviewed diff instead of a quiet edit.  The
-    # self-test runs first: a rule that cannot catch a planted violation
-    # is not a rule.
+    # automation off master" in COMPATIBILITY.md).  Check both on every run,
+    # so that changing either is a reviewed diff instead of a quiet edit.
+    # Each checker proves first that it catches a planted violation: a rule
+    # or a test that cannot fail is not one.
     name: workflow policy
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -27,6 +27,8 @@ jobs:
         run: python3 .github/scripts/check_workflow_policy.py --selftest
       - name: policy
         run: python3 .github/scripts/check_workflow_policy.py
+      - name: sentinel logic (apply, PR body, pending-PR lookup, script syntax)
+        run: python3 .github/scripts/selftest_sentinel.py
 
   window:
     # The tested nginx version set comes from .github/nginx-versions.json
