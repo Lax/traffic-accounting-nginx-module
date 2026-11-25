@@ -3,6 +3,12 @@ name: protect-probe-tmp
 # token holding contents: write can write to a branch that carries the same
 # protection rules as master.  Throw-away branches only; master is not
 # touched.
+#
+# v2: the first version pushed the checked-out merge commit, which a
+# depth-1 checkout cannot prove to be a fast-forward, so even the control
+# push was rejected for an unrelated reason.  Each probe commit is now
+# created directly on the tip of its target branch and changes no workflow
+# file.
 on:
   pull_request:
     branches: [probe-base-tmp]
@@ -21,30 +27,48 @@ jobs:
           set +e
           git config user.name "protection-probe"
           git config user.email "protection-probe@users.noreply.github.com"
-          git commit --allow-empty -q -m "probe: empty commit"
           echo "PROBE_TOKEN_IDENTITY=$(gh api graphql -f query='{viewer{login}}' --jq .data.viewer.login 2>/dev/null)"
 
-          echo "--- control: push to an UNPROTECTED branch ---"
-          git push origin "HEAD:refs/heads/probe-unprotected-tmp" > push1.log 2>&1; rc1=$?
-          tail -5 push1.log
-          [ $rc1 -eq 0 ] && echo "PROBE_CONTROL_UNPROTECTED=ACCEPTED" || echo "PROBE_CONTROL_UNPROTECTED=REJECTED"
+          # a new empty commit directly on top of <branch>'s remote tip
+          on_tip() {
+            git fetch -q origin "$1" --depth=1
+            local tip; tip=$(git rev-parse FETCH_HEAD)
+            git commit-tree "$tip^{tree}" -p "$tip" -m "probe: empty commit"
+          }
+          try_push() {   # label, commit, branch
+            git push origin "$2:refs/heads/$3" > "push-$1.log" 2>&1; local rc=$?
+            echo "exit status of 'git push -> $3': $rc"
+            grep -vE "^(To | \* \[new|$)" "push-$1.log" | head -8
+            [ $rc -eq 0 ] && echo "PROBE_$1=ACCEPTED" || echo "PROBE_$1=REJECTED"
+          }
 
-          echo "--- test A: push to a PROTECTED branch (same rules as master) ---"
-          git push origin "HEAD:refs/heads/protect-probe-tmp" > push2.log 2>&1; rc2=$?
-          tail -8 push2.log
-          [ $rc2 -eq 0 ] && echo "PROBE_A_PUSH_PROTECTED=ACCEPTED" || echo "PROBE_A_PUSH_PROTECTED=REJECTED"
+          echo "=== control: push to an UNPROTECTED branch ==="
+          try_push CONTROL_UNPROTECTED "$(on_tip probe-unprotected-tmp)" probe-unprotected-tmp
 
-          echo "--- test B: bot opens a PR onto the protected branch, then merges it WITHOUT admin ---"
+          echo "=== test A: push to a PROTECTED branch (same rules as master) ==="
+          try_push A_PUSH_PROTECTED "$(on_tip protect-probe-tmp)" protect-probe-tmp
+
+          echo "=== test B: bot opens a PR onto the protected branch, then merges it WITHOUT admin ==="
           url=$(gh pr create --base protect-probe-tmp --head probe-unprotected-tmp \
                   --title "probe: bot-opened PR onto a protected branch" \
                   --body "Temporary; created by the protection probe. Not to be merged by anyone." 2> prc.log)
-          rc3=$?; tail -3 prc.log
+          rc3=$?; grep -v '^$' prc.log | tail -3
           if [ $rc3 -ne 0 ]; then
             echo "PROBE_B_PR_CREATE=FAILED"
           else
-            echo "PROBE_B_PR_CREATE=ACCEPTED"
-            num=${url##*/}
-            gh pr merge "$num" --merge > merge.log 2>&1; rc4=$?
-            tail -6 merge.log
+            echo "PROBE_B_PR_CREATE=ACCEPTED (PR ${url##*/})"
+            gh pr merge "${url##*/}" --merge > merge.log 2>&1; rc4=$?
+            echo "exit status of 'gh pr merge --merge' (no admin): $rc4"
+            grep -v '^$' merge.log | tail -6
             [ $rc4 -eq 0 ] && echo "PROBE_B_MERGE_PROTECTED=ACCEPTED" || echo "PROBE_B_MERGE_PROTECTED=REJECTED"
           fi
+
+          echo "=== test C: can the token push a commit that ADDS a workflow file (unprotected branch)? ==="
+          git fetch -q origin probe-base-tmp --depth=1
+          tip=$(git rev-parse FETCH_HEAD)
+          export GIT_INDEX_FILE="$RUNNER_TEMP/probe-index"
+          git read-tree "$tip^{tree}"
+          blob=$(printf 'name: probe-c\non: [workflow_dispatch]\npermissions:\n  contents: read\njobs: {}\n' | git hash-object -w --stdin)
+          git update-index --add --cacheinfo "100644,$blob,.github/workflows/probe-c.yml"
+          tree=$(git write-tree); unset GIT_INDEX_FILE
+          try_push C_PUSH_WORKFLOW_FILE "$(git commit-tree "$tree" -p "$tip" -m "probe: adds a workflow file")" probe-base-tmp
