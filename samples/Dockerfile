@@ -9,7 +9,7 @@
 #
 # NGX_TAG should track the window stable tested by CI (see COMPATIBILITY.md);
 # bump it when the upstream-sentinel workflow opens its window PR.
-ARG NGX_TAG=1.30.7-alpine
+ARG NGX_TAG=1.30.8-alpine
 
 FROM nginx:${NGX_TAG} AS builder
 
