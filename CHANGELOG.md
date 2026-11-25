@@ -7,8 +7,6 @@ below.
 
 ## v3.2.0
 
-Not released yet.
-
 A source release: build the module from source (README, Quickstart).  It
 ships no prebuilt binaries -- see the end of this entry.
 
@@ -68,6 +66,10 @@ The state of the repository at the time of this release:
   (`.github/nginx-versions.json`): stable 1.30.8, mainline 1.31.10,
   previous stable 1.28.3 and floor 1.24.0, kept in step with upstream by
   a daily sentinel.  The policy is in [COMPATIBILITY.md](COMPATIBILITY.md).
+- A `policy` job checks on every change that only the sentinel's
+  `report` job holds a write-capable token, and that it can only open
+  the window PR.  What keeps automation off `master` is measured and
+  documented; the steps are in `tests/governance/`.
 - A 17-case black-box functional suite, an ASAN soak and a load
   conservation harness, under `tests/`.
 - The demo image is built on the official `nginx:<version>-alpine`
