@@ -4,22 +4,42 @@ name: upstream-sentinel
 # (see COMPATIBILITY.md) in step with upstream:
 #
 #   unchanged        -> summary only
-#   changed, green   -> PR that updates .github/nginx-versions.json
-#                       (the tests.yml matrix follows the file automatically)
+#   changed, green   -> PR that applies the window to
+#                       .github/nginx-versions.json and to the demo image
+#                       tag in samples/Dockerfile, and triggers the full
+#                       tests matrix on its branch (at most one such PR is
+#                       open at a time)
 #   changed, red     -> issue with the failing logs, baseline untouched
-#                       (the next weekly run re-detects and re-reports)
+#                       (the next daily run re-detects and re-reports)
 #
 # The sentinel never merges anything: a human reviews the window PR.
+#
+# A PR opened with the workflow token does not get its pull_request-triggered
+# workflows run by itself: that run parks in "action_required" until a human
+# approves it, and nothing on the PR says so.  The sentinel therefore
+# dispatches the tests matrix on the PR branch (workflow_dispatch is the one
+# trigger the token may fire) and links it from the PR body.  Merge only on
+# a green linked run.
+#
+# Daily, not weekly: a scan costs seconds, and the policy in
+# COMPATIBILITY.md promises a green window within a few working days of an
+# upstream release.  nginx 1.30.8/1.31.10 (a CVE fix) were released on
+# 2026-11-23, hours after that day's weekly scan, and would otherwise have
+# gone unnoticed for a week.
 
 on:
   schedule:
-    - cron: "0 3 * * 1"   # weekly, Monday 03:00 UTC
+    # Off the hour: GitHub's scheduler is busiest at the top of every hour
+    # and on-the-hour schedules here ran roughly 8-10.5h late
+    # (observed 2026-11-22..24).
+    - cron: "23 7 * * *"   # daily, 07:23 UTC
   workflow_dispatch:
 
 permissions:
   contents: write
   issues: write
   pull-requests: write
+  actions: write          # dispatch the tests matrix on the window PR branch
 
 concurrency:
   group: upstream-sentinel
@@ -165,15 +185,30 @@ jobs:
         if: needs.validate.outputs.all_green == 'true'
         run: |
           python3 - <<'EOF'
-          import json
+          import json, re, sys
           v = json.load(open("scan-artifacts/verdict.json"))
-          assert v["changed"], "verdict changed between jobs, aborting"
+          if not v["changed"]:
+              # unreachable with per-run artifacts, kept as a tripwire
+              sys.exit("verdict.json no longer reports a change; aborting")
+          if not re.match(r"^\d+\.\d+\.\d+$", v["proposed"]["stable"]):
+              sys.exit("refusing to apply a non x.y.z stable: %r" % v["proposed"]["stable"])
           with open(".github/nginx-versions.json", "w") as f:
               json.dump(v["proposed"], f, indent=2)
               f.write("\n")
-          print("window applied:", v["summary"])
+          # The demo image runs the window stable; move it in the same
+          # commit so the PR is self-consistent (the version-window CI job
+          # rejects the two disagreeing).
+          path = "samples/Dockerfile"
+          src = open(path).read()
+          arg_line = r"(?m)^ARG NGX_TAG=\S+[ \t]*$"
+          hits = len(re.findall(arg_line, src))
+          if hits != 1:
+              sys.exit("%s: expected exactly one 'ARG NGX_TAG=' line, found %d" % (path, hits))
+          out = re.sub(arg_line, "ARG NGX_TAG=%s-alpine" % v["proposed"]["stable"], src)
+          open(path, "w").write(out)
+          print("window applied:", v["summary"], "| demo tag ->", v["proposed"]["stable"] + "-alpine")
           EOF
-          cat .github/nginx-versions.json
+          git diff --stat
 
       - name: open window PR
         if: needs.validate.outputs.all_green == 'true'
@@ -181,11 +216,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           SUMMARY="${{ needs.scan.outputs.summary }}"
+          STABLE="$(python3 -c 'import json; print(json.load(open(".github/nginx-versions.json"))["stable"])')"
+          RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          # One open window PR at a time.  A daily scan re-detects the same
+          # upstream change on every run until that PR is merged; re-report
+          # there instead of stacking another PR on top of it.
+          existing=$(gh pr list --state open --limit 100 \
+              --json number,headRefName \
+              --jq '[.[] | select(.headRefName | startswith("nginx-window-"))][0].number // ""')
+          if [[ -n "$existing" ]]; then
+            gh pr comment "$existing" --body \
+                "Re-validated by upstream-sentinel ([run $GITHUB_RUN_ID]($RUN_URL)): $SUMMARY. This PR is still the pending window update."
+            echo "window PR #$existing is already open; commented there instead of opening another"
+            exit 0
+          fi
           BR="nginx-window-$(date +%Y%m%d)-$GITHUB_RUN_ID"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BR"
-          git add .github/nginx-versions.json
+          git add .github/nginx-versions.json samples/Dockerfile
           git commit -m "nginx window update: $SUMMARY"
           git push origin "$BR"
           {
@@ -193,19 +242,31 @@ jobs:
             echo ""
             echo "$SUMMARY"
             echo ""
-            echo "Validated green by upstream-sentinel (build + functional suite, \`both\` variant):"
+            echo "Applies to \`.github/nginx-versions.json\` and to the demo image tag in \`samples/Dockerfile\` (\`ARG NGX_TAG=$STABLE-alpine\`)."
+            echo ""
+            echo "Validated by upstream-sentinel (build + functional suite, \`both\` variant):"
             echo ""
             for v in ${{ needs.scan.outputs.versions }}; do
               echo "- nginx $v"
             done
             echo ""
-            echo "The tests.yml matrix follows \`.github/nginx-versions.json\` automatically."
-            echo "Merging this PR is the window bump; nothing else needs editing."
+            echo "**Full test matrix on this branch:**"
+            echo "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/tests.yml?query=branch%3A$BR"
+            echo ""
+            echo "It is triggered explicitly by the sentinel: workflows triggered by this PR itself wait for a manual approval (\`action_required\`) because the PR is opened with the workflow token."
+            echo ""
+            echo "Review checklist:"
+            echo "- the linked matrix run is green"
+            echo "- the official \`nginx:$STABLE-alpine\` image exists: https://hub.docker.com/_/nginx/tags?name=$STABLE-alpine"
+            echo ""
+            echo "Then merge; nothing else needs editing."
           } > pr-body.md
           gh pr create \
               --title "nginx window update: $SUMMARY" \
               --body-file pr-body.md \
               --base master --head "$BR"
+          gh workflow run tests.yml --ref "$BR"
+          echo "tests matrix dispatched on $BR"
 
       - name: open issue on validation failure
         if: needs.validate.outputs.all_green != 'true'
@@ -219,7 +280,7 @@ jobs:
             echo ""
             echo "nginx.org now advertises: ${{ needs.scan.outputs.summary }}"
             echo ""
-            echo "The baseline was **not** changed; the next weekly run will"
+            echo "The baseline was **not** changed; the next daily run will"
             echo "re-detect and re-report until adapted or the baseline is"
             echo "updated by hand (floor is always manual, see COMPATIBILITY.md)."
             echo ""
