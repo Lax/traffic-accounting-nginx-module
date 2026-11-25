@@ -7,8 +7,9 @@
 # accounting, echo all work).  nginx security updates therefore come from
 # rebasing on a newer official tag instead of recompiling nginx here.
 #
-# NGX_TAG should track the window stable tested by CI (see COMPATIBILITY.md);
-# bump it when the upstream-sentinel workflow opens its window PR.
+# NGX_TAG tracks the window stable tested by CI (see COMPATIBILITY.md):
+# the version-window CI job fails until it equals <stable>-alpine in
+# .github/nginx-versions.json, so bump both together.
 ARG NGX_TAG=1.30.8-alpine
 
 FROM nginx:${NGX_TAG} AS builder
