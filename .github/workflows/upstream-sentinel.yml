@@ -18,8 +18,10 @@ name: upstream-sentinel
 # workflows run by itself: that run parks in "action_required" until a human
 # approves it, and nothing on the PR says so.  The sentinel therefore
 # dispatches the tests matrix on the PR branch (workflow_dispatch is the one
-# trigger the token may fire) and links it from the PR body.  Merge only on
-# a green linked run.
+# trigger the token may fire) and links it from the PR body, so the freshly
+# opened PR carries complete CI evidence before anyone touches it.  (Once a
+# human pushes to the PR branch, the PR's own checks run as usual.)
+# Merge only on a green run.
 #
 # Daily, not weekly: a scan costs seconds, and the policy in
 # COMPATIBILITY.md promises a green window within a few working days of an
@@ -253,7 +255,7 @@ jobs:
             echo "**Full test matrix on this branch:**"
             echo "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/tests.yml?query=branch%3A$BR"
             echo ""
-            echo "It is triggered explicitly by the sentinel: workflows triggered by this PR itself wait for a manual approval (\`action_required\`) because the PR is opened with the workflow token."
+            echo "It is triggered explicitly by the sentinel: the checks triggered by this PR itself wait for a manual approval (\`action_required\`) while the PR is untouched, because it is opened with the workflow token; they run on their own once someone pushes to the branch."
             echo ""
             echo "Review checklist:"
             echo "- the linked matrix run is green"

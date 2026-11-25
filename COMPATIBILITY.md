@@ -50,12 +50,14 @@ untested; the pre-v2 tags in this repository cover ancient nginx lines).
   - at most one window PR is open at a time: while one is pending, later
     runs add their verdict as a comment on it instead of opening another;
   - the sentinel never merges anything -- a human reviews the PR.
-- **CI evidence for a window PR is not on the PR.**  The sentinel opens it
-  with the workflow token, and the `pull_request`-triggered `tests` run on
-  such a PR parks in `action_required` until a human approves it -- nothing
-  on the PR page says so.  The sentinel therefore dispatches the full
-  `tests` matrix on the PR branch itself and links that run from the PR
-  body.  Merge a window PR only when that linked run is green.
+- **CI evidence for a freshly opened window PR is not on the PR.**  The
+  sentinel opens it with the workflow token, and the `pull_request`-triggered
+  `tests` run on that event parks in `action_required` until a human approves
+  it -- nothing on the PR page says so, and the PR shows "no checks".  The
+  sentinel therefore dispatches the full `tests` matrix on the PR branch
+  itself and links that run from the PR body.  Once someone pushes to the PR
+  branch, the PR's own checks run as usual.  Merge a window PR only when a
+  `tests` run on its current commit is green.
 - Branch protection on `master` asks for one review and no status checks,
   so "green tests run before merge" is a discipline here, not an enforced
   gate.
