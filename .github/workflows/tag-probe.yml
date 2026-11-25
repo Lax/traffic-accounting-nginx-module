@@ -1,6 +1,11 @@
 name: tag-probe-tmp
+# TEMPORARY -- deleted together with its branches.  Measures whether a
+# workflow token holding contents: write can create a tag matching v*
+# under the "protect release tags" ruleset.  Throws away nothing but its
+# own throw-away objects; master is not touched.
 on:
-  workflow_dispatch:
+  pull_request:
+    branches: [wf-tagprobe-base-tmp]
 permissions:
   contents: write
 jobs:
