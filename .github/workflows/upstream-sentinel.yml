@@ -12,16 +12,22 @@ name: upstream-sentinel
 #   changed, red     -> issue with the failing logs, baseline untouched
 #                       (the next daily run re-detects and re-reports)
 #
-# The sentinel never merges anything: a human reviews the window PR.
+# The sentinel never merges anything: a human reviews the window PR.  What
+# actually keeps it off `master` is not that sentence but GitHub itself, and
+# the `policy` job of tests.yml checks the arrangement holds -- see "What
+# keeps automation off master" in COMPATIBILITY.md.  In short: only the
+# `report` job below holds a write-capable token, and its scripts may not
+# merge, tag, release, call the API or push anywhere but the new window
+# branch.
 #
 # A PR opened with the workflow token does not get its pull_request-triggered
 # workflows run by itself: that run parks in "action_required" until a human
-# approves it, and nothing on the PR says so.  The sentinel therefore
-# dispatches the tests matrix on the PR branch (workflow_dispatch is the one
-# trigger the token may fire) and links it from the PR body, so the freshly
-# opened PR carries complete CI evidence before anyone touches it.  (Once a
-# human pushes to the PR branch, the PR's own checks run as usual.)
-# Merge only on a green run.
+# approves it, and `gh pr checks` reports no checks on it.  The sentinel
+# therefore dispatches the tests matrix on the PR branch (workflow_dispatch
+# is the one trigger the token may fire) and links it from the PR body, so
+# the freshly opened PR carries complete CI evidence before anyone touches
+# it.  (Once a human pushes to the PR branch, the PR's own checks run as
+# usual.)  Merge only on a green run.
 #
 # Daily, not weekly: a scan costs seconds, and the policy in
 # COMPATIBILITY.md promises a green window within a few working days of an
@@ -37,11 +43,12 @@ on:
     - cron: "23 7 * * *"   # daily, 07:23 UTC
   workflow_dispatch:
 
+# Read-only for every job.  `scan` and `validate` parse a web page and build
+# and run nginx from downloaded sources; giving the token that runs them
+# write access to this repository buys nothing.  The write permissions the
+# sentinel needs live on the one job that uses them (`report`).
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  actions: write          # dispatch the tests matrix on the window PR branch
+  contents: read
 
 concurrency:
   group: upstream-sentinel
@@ -170,6 +177,15 @@ jobs:
     if: always() && needs.scan.outputs.changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # The only job in this repository with a write-capable token.  It opens
+    # a PR on a new branch, comments on an open one, files an issue, and
+    # dispatches the tests matrix on that branch -- nothing else; the
+    # `policy` job of tests.yml fails on anything beyond that.
+    permissions:
+      contents: write        # push the new window branch
+      pull-requests: write   # open the window PR, comment on the pending one
+      issues: write          # report a red validation
+      actions: write         # dispatch the tests matrix on the window PR branch
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4

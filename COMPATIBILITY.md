@@ -53,14 +53,14 @@ untested; the pre-v2 tags in this repository cover ancient nginx lines).
 - **CI evidence for a freshly opened window PR is not on the PR.**  The
   sentinel opens it with the workflow token, and the `pull_request`-triggered
   `tests` run on that event parks in `action_required` until a human approves
-  it -- nothing on the PR page says so, and the PR shows "no checks".  The
-  sentinel therefore dispatches the full `tests` matrix on the PR branch
-  itself and links that run from the PR body.  Once someone pushes to the PR
-  branch, the PR's own checks run as usual.  Merge a window PR only when a
-  `tests` run on its current commit is green.
-- Branch protection on `master` asks for one review and no status checks,
-  so "green tests run before merge" is a discipline here, not an enforced
-  gate.
+  it -- `gh pr checks` reports no checks on it.  The sentinel therefore
+  dispatches the full `tests` matrix on the PR branch itself and links that
+  run from the PR body.  Once someone pushes to the PR branch, the PR's own
+  checks run as usual.  Merge a window PR only when a `tests` run on its
+  current commit is green.
+- What stops the sentinel from writing `master`, and what does not stop
+  it, is in [What keeps automation off master](#what-keeps-automation-off-master)
+  below.
 - `.github/workflows/mainline-tip.yml` builds the module against the nginx
   development tip (GitHub mirror) nightly, as an early warning for API
   changes that have not been released yet.  Its log states the version of
@@ -79,6 +79,62 @@ To run the whole compatibility check locally:
 tests/lib/build-nginx.sh -s . -o /tmp/b -v both --nginx-version 1.30.8 --werror
 tests/run-tests.sh /tmp/b/nginx both
 ```
+
+## What keeps automation off `master`
+
+One workflow holds a write-capable token: `upstream-sentinel`, and only its
+`report` job (every other job and workflow is read-only).  That job opens a
+PR on a new branch, comments on a pending one, files an issue, and dispatches
+the `tests` matrix on that branch.
+
+Measured on 2026-11-25, with a workflow token holding `contents: write`
+against a throw-away branch carrying the same protection rules as `master`.
+The instrument is kept in the repository -- not installed as a workflow --
+at `tests/governance/workflow-token-probe.yml`, with the steps to repeat
+it; the valid run is
+[45533274170](https://github.com/Lax/traffic-accounting-nginx-module/actions/runs/45533274170)
+(`PROBE_` lines in its job log):
+
+| attempted write | outcome |
+|---|---|
+| push to an unprotected branch (control) | accepted |
+| push to the protected branch | rejected: `GH006: Protected branch update failed` -- `Changes must be made through a pull request` |
+| open a PR onto the protected branch, then merge it | PR opened; merge rejected: `At least 1 approving review is required by reviewers with write access` |
+| push a commit that adds a workflow file, to an unprotected branch | rejected: `refusing to allow a GitHub App to create or update workflow` -- it needs the `workflows` permission |
+
+So the sentinel cannot put anything on `master` by itself, and cannot change
+its own instructions.  Two checkers keep that true, both run by the
+`policy` job of `tests.yml` on every change:
+
+- `.github/scripts/check_workflow_policy.py` -- write-level permissions
+  only on that one job, no `workflows` permission anywhere, only the listed
+  triggers, and in the privileged job no merging, tagging, releasing, direct
+  API calls, downloads or installs, and no `git push` except the new window
+  branch.  Its self-test plants a violation for every rule.
+- `.github/scripts/selftest_sentinel.py` -- the sentinel's own logic, taken
+  verbatim from the workflow file and run offline against a synthetic
+  upstream change: what it applies, what it refuses, the PR body, the
+  one-pending-PR lookup, and the syntax of every run script.
+
+What this does **not** cover:
+
+- **Administrators bypass the protection** (`enforce_admins` is off).  A
+  person with the admin role, or anything using an admin token, can push to
+  or merge into `master` without a review.  That is the one path by which
+  content reaches `master` unreviewed.  Whether it is used is a matter of
+  who holds the token, not something the sentinel or the `policy` job can
+  prevent.
+- **No status check is required to merge.**  Branch protection asks for one
+  approving review and nothing else, so a PR can be merged while `tests` is
+  red.  "Green before merge" is a discipline here, not an enforced gate.
+- **Tags and releases are not protected.**  Branch protection covers the
+  `master` branch and the repository has no rulesets, so by its permissions
+  (`contents: write` covers refs) the sentinel's token could create tags and
+  releases.  This was not measured.  What is enforced is that the
+  `policy` job fails if the privileged scripts ever gain a command to do it.
+- **The repository default for workflows without a `permissions:` block is
+  read/write.**  Every workflow here declares its permissions, and the
+  `policy` job fails on one that does not.
 
 ## Module/nginx coupling surface
 
